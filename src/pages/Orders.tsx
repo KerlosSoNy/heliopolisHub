@@ -473,7 +473,7 @@ export default function Orders() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label><User size={14} /> Client *</label>
+                                <label className='flex! flex-row items-center gap-2'><User size={14} /> Client *</label>
                                 <select title='Select' required value={client} onChange={(e) => setClient(e.target.value)}>
                                     <option value="">Select client...</option>
                                     {customers.map((c) => {
@@ -488,8 +488,8 @@ export default function Orders() {
                             </div>
 
                             {selectedCustomer && customerDeposite > 0 && (
-                                <div className="deposite-banner">
-                                    <div className="deposite-banner-info">
+                                <div className="deposite-banner flex! flex-row items-center gap-2">
+                                    <div className="deposite-banner-info flex! flex-row items-center gap-2">
                                         <Wallet size={18} />
                                         <div>
                                             <strong>{selectedCustomer.name}</strong> has deposit
@@ -504,17 +504,17 @@ export default function Orders() {
                             )}
 
                             {selectedCustomer && customerDeposite === 0 && (
-                                <div className="deposite-banner no-deposite">
+                                <div className="deposite-banner no-deposite flex! flex-row items-center gap-2 mb-4!">
                                     <Wallet size={16} /><span><strong>{selectedCustomer.name}</strong> has no deposit</span>
                                 </div>
                             )}
 
                             <div className="form-group">
-                                <label>
+                                <label className='flex! flex-row items-center gap-2'>
                                     <Package size={14} /> Select Products *
                                     <span className="label-badge">{selectedProducts.length} selected</span>
                                 </label>
-                                <div className="product-selector">
+                                <div className="grid grid-cols-2 max-h-100 overflow-y-auto border rounded-2xl p-2! border-gray-300 gap-4!">
                                     {allProducts.map((p) => {
                                         const selected = isSelected(p.$id);
                                         const soldPc = getSoldPerPiece(p);
@@ -525,15 +525,15 @@ export default function Orders() {
                                         const outOfStock = available === 0;
 
                                         return (
-                                            <div key={p.$id} className={`product-select-item ${selected ? 'selected' : ''} ${outOfStock ? 'out-of-stock' : ''}`}>
-                                                <div className="product-select-check" onClick={() => !outOfStock && toggleProduct(p.$id)}>
+                                            <div key={p.$id} className={`product-select-item  ${selected ? 'selected' : 'bg-gray-400'} ${outOfStock ? 'out-of-stock' : ''}`}>
+                                                <div className="product-select-check " onClick={() => !outOfStock && toggleProduct(p.$id)}>
                                                     {selected && <Check size={16} />}
                                                 </div>
-                                                <div className="product-select-info" onClick={() => !outOfStock && !selected && toggleProduct(p.$id)}>
-                                                    <span className="product-select-name">
+                                                <div className="product-select-info flex! flex-col" onClick={() => !outOfStock && !selected && toggleProduct(p.$id)}>
+                                                    <span className="product-select-name flex! flex-col items-center text-center">
                                                         {p.name}
-                                                        {soldPc === 0 && <span className="no-sold-badge">No sold price</span>}
-                                                        {outOfStock && <span className="out-of-stock-badge">Out of stock</span>}
+                                                        {soldPc === 0 && <span className="no-sold-badge mt-2!">No sold price</span>}
+                                                        {outOfStock && <span className="out-of-stock-badge w-fit mx-auto mt-2!">Out of stock</span>}
                                                     </span>
                                                     <span className="product-select-details">
                                                         {soldPc > 0 ? <>Sold: <strong>{soldPc.toFixed(2)}</strong> EGP/pc</> : <>Cost: {costPc.toFixed(2)} EGP/pc</>}
@@ -570,7 +570,7 @@ export default function Orders() {
                                         return (
                                             <div key={sp.productId} className="order-breakdown-item">
                                                 <div className="breakdown-product-info">
-                                                    <span className="breakdown-product-name">{product.name}<span className="breakdown-qty">×{sp.qty}</span></span>
+                                                    <span className="breakdown-product-name">{product.name}<span className="breakdown-qty mx-2! py-1!">×{sp.qty}</span></span>
                                                     <span className="breakdown-unit-price">{displayPrice.toFixed(2)} EGP/pc {soldPc > 0 ? '(sold)' : '(cost)'}</span>
                                                 </div>
                                                 <div className="breakdown-item-total">{(displayPrice * sp.qty).toFixed(2)} EGP</div>

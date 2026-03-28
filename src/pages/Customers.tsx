@@ -347,7 +347,7 @@ export default function Customers() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label><User size={14} /> Name *</label>
+                                <label className='flex flex-row items-center gap-2'><User size={14} /> Name *</label>
                                 <input required placeholder="Customer name" value={form.name}
                                     onChange={(e) => setForm({ ...form, name: e.target.value })} />
                             </div>

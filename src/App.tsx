@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import './App.css';
 import AdditionalPage from './pages/Additional';
 import Shipments from './pages/Shipments';
+import ShipmentDetail from './pages/ShipmentDetail';
 
 function AppLayout() {
   const { user, logout } = useAuth();
@@ -70,6 +71,7 @@ function AppLayout() {
           <Route path="/additional" element={<AdditionalPage />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/shipments" element={<Shipments />} />
+          <Route path="/shipments/:id" element={<ShipmentDetail />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

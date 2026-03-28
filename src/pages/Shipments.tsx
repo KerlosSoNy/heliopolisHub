@@ -10,6 +10,7 @@ import { useCollection } from '../hooks/useCollection';
 import type { Shipment, ShipmentForm, ShipmentProduct, Product } from '../types';
 import { usePagination } from '../lib/hooks/usePagination';
 import Pagination from '../components/Pagination';
+import { useNavigate } from 'react-router-dom';
 
 const emptyForm: ShipmentForm = {
     products: [],
@@ -35,7 +36,7 @@ export default function Shipments() {
     const { data: products } = useCollection<Product>({
         fetchFn: useCallback(() => productService.listAll(), []),
     });
-
+    const navigate = useNavigate();
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<ShipmentForm>(emptyForm);
@@ -157,15 +158,126 @@ export default function Shipments() {
         itemsPerPage: 10,
     });
 
+
+    const getProduct = (id: string): Product | undefined => {
+        return products.find((p) => p.$id === id);
+    };
+
+    // Same formula as Products page
+    const calcProductProfit = (product: Product) => {
+        const priceEgp = (parseFloat(product.price_chi) || 0) * (parseFloat(product.rate) || 0);
+
+        const totalOrder = parseFloat(product.total_order || '0');
+        const totalShipping = parseFloat(product.total_shipping || '0');
+
+        let shippingPerPiece = 0;
+        if (totalOrder > 0 && totalShipping > 0) {
+            shippingPerPiece = (priceEgp / totalOrder) * totalShipping;
+        }
+
+        const totalCostPerPiece = priceEgp + shippingPerPiece;
+        const soldPrice = parseFloat(product.sold_price || '0');
+        const profitPerPiece = soldPrice > 0 ? soldPrice - totalCostPerPiece : 0;
+
+        return {
+            priceEgp,
+            shippingPerPiece,
+            totalCostPerPiece,
+            soldPrice,
+            profitPerPiece,
+            hasRevenue: soldPrice > 0,
+        };
+    };
+
+    // Calculate profit for a single product inside a shipment
+    const calcProductInShipment = (sp: ShipmentProduct) => {
+        const product = getProduct(sp.productId);
+        if (!product) return null;
+
+        const calc = calcProductProfit(product);
+
+        return {
+            name: product.name,
+            qty: sp.qty,
+            priceEgp: calc.priceEgp,
+            shippingPerPiece: calc.shippingPerPiece,
+            totalCostPerPiece: calc.totalCostPerPiece,
+            soldPrice: calc.soldPrice,
+            profitPerPiece: calc.profitPerPiece,
+            totalProfit: calc.profitPerPiece * sp.qty,
+            totalCost: calc.totalCostPerPiece * sp.qty,
+            totalRevenue: calc.soldPrice * sp.qty,
+            hasRevenue: calc.hasRevenue,
+        };
+    };
+
+    // Calculate total profit for the entire shipment
+    const calcShipmentProfit = (shipment: Shipment) => {
+        const parsed = parseProducts(shipment.products);
+
+        let totalCost = 0;
+        let totalRevenue = 0;
+        let totalProfit = 0;
+        let hasAnyRevenue = false;
+
+        parsed.forEach((sp) => {
+            const calc = calcProductInShipment(sp);
+            if (!calc) return;
+
+            totalCost += calc.totalCost;
+            totalRevenue += calc.totalRevenue;
+            totalProfit += calc.totalProfit;
+            if (calc.hasRevenue) hasAnyRevenue = true;
+        });
+
+        // Also include shipment-level costs (extra_cost, shipping from shipment)
+        const shipmentExtraCost = parseFloat(shipment.extra_cost || '0');
+        const shipmentShipping = parseFloat(shipment.shipping || '0');
+        const shipmentCostInChina = parseFloat(shipment.cost_in_china || '0');
+        const shipmentTotalCost = parseFloat(shipment.total_cost || '0');
+
+        return {
+            // From product calculations
+            productsTotalCost: totalCost,
+            productsTotalRevenue: totalRevenue,
+            productsTotalProfit: totalProfit,
+
+            // Shipment-level costs
+            shipmentCostInChina,
+            shipmentShipping,
+            shipmentExtraCost,
+            shipmentTotalCost,
+
+            // Final profit = Revenue - Shipment Total Cost
+            finalProfit: totalRevenue - shipmentTotalCost,
+            profitPercentage: shipmentTotalCost > 0
+                ? ((totalRevenue - shipmentTotalCost) / shipmentTotalCost) * 100
+                : 0,
+
+            hasRevenue: hasAnyRevenue,
+        };
+    };
     // ========== TOTALS ==========
     const totals = shipments.reduce(
-        (acc, s) => ({
-            totalCostInChina: acc.totalCostInChina + (parseFloat(s.cost_in_china) || 0),
-            totalShipping: acc.totalShipping + (parseFloat(s.shipping) || 0),
-            totalExtra: acc.totalExtra + (parseFloat(s.extra_cost) || 0),
-            totalCost: acc.totalCost + (parseFloat(s.total_cost) || 0),
-        }),
-        { totalCostInChina: 0, totalShipping: 0, totalExtra: 0, totalCost: 0 }
+        (acc, s) => {
+            const profitCalc = calcShipmentProfit(s);
+            return {
+                totalCostInChina: acc.totalCostInChina + profitCalc.shipmentCostInChina,
+                totalShipping: acc.totalShipping + profitCalc.shipmentShipping,
+                totalExtra: acc.totalExtra + profitCalc.shipmentExtraCost,
+                totalCost: acc.totalCost + profitCalc.shipmentTotalCost,
+                totalRevenue: acc.totalRevenue + profitCalc.productsTotalRevenue,
+                totalProfit: acc.totalProfit + profitCalc.finalProfit,
+            };
+        },
+        {
+            totalCostInChina: 0,
+            totalShipping: 0,
+            totalExtra: 0,
+            totalCost: 0,
+            totalRevenue: 0,
+            totalProfit: 0,
+        }
     );
 
     const totalSelectedQty = selectedProducts.reduce((sum, sp) => sum + sp.qty, 0);
@@ -226,17 +338,21 @@ export default function Shipments() {
             </div>
 
             {/* Cards View */}
-            <div className="flex flex-row items-center h-95 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
+            <div className="flex flex-row items-center h-115 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
                 {filteredShipments.map((s) => {
-                    const total = parseFloat(s.total_cost) || 0;
                     const parsed = parseProducts(s.products);
                     const totalQty = parsed.reduce((sum, sp) => sum + sp.qty, 0);
+                    const profitCalc = calcShipmentProfit(s);
 
                     return (
-                        <div key={s.$id} className="product-card w-75 h-full shrink-0">
+                        <div
+                            key={s.$id}
+                            className="product-card w-72 h-full shrink-0 cursor-pointer"
+                            onClick={() => navigate(`/shipments/${s.$id}`)}
+                        >
                             <div className="product-card-header">
                                 <div className="product-icon"><Ship size={22} /></div>
-                                <div className="customer-card-actions">
+                                <div className="customer-card-actions" onClick={(e) => e.stopPropagation()}>
                                     <button type="button" title="Edit" className="btn-icon" onClick={() => openEdit(s)}>
                                         <Edit size={15} />
                                     </button>
@@ -246,22 +362,16 @@ export default function Shipments() {
                                 </div>
                             </div>
 
-                            <h3 className="product-name">
-                                Shipment #{s.$id.slice(0, 8)}
-                            </h3>
+                            <h3 className="product-name">Shipment #{s.$id.slice(0, 8)}</h3>
 
-                            {/* Products with Quantities */}
-                            <div className="shipment-products-list">
-                                <span className="product-stat-label !flex flex-row items-center gap-2">
-                                    <Package size={12} /> Products ({parsed.length}) — {totalQty} items
-                                </span>
-                            </div>
-
-                            {/* Cost Breakdown */}
-                            <div className="price-breakdown mt-2!">
+                            <div className="price-breakdown">
                                 <div className="breakdown-row">
                                     <span>Cost in China</span>
                                     <span>{parseFloat(s.cost_in_china).toFixed(2)} EGP</span>
+                                </div>
+                                <div className="breakdown-row">
+                                    <span><Package size={12} /> Products</span>
+                                    <span>{parsed.length} products — {totalQty} items</span>
                                 </div>
                                 <div className="breakdown-row">
                                     <span><Truck size={12} /> Shipping</span>
@@ -273,8 +383,29 @@ export default function Shipments() {
                                 </div>
                                 <div className="breakdown-row breakdown-total">
                                     <span><strong>Total Cost</strong></span>
-                                    <span><strong>{total.toFixed(2)} EGP</strong></span>
+                                    <span><strong>{profitCalc.shipmentTotalCost.toFixed(2)} EGP</strong></span>
                                 </div>
+
+                                {profitCalc.hasRevenue ? (
+                                    <>
+                                        <div className={`breakdown-row breakdown-total ${profitCalc.finalProfit >= 0 ? 'profit-positive' : 'profit-negative'
+                                            }`}>
+                                            <span><TrendingUp size={12} /> Profit</span>
+                                            <strong>{profitCalc.finalProfit.toFixed(2)} EGP</strong>
+                                        </div>
+                                        <div className="breakdown-row">
+                                            <span>Margin</span>
+                                            <span className={profitCalc.profitPercentage >= 0 ? 'text-green' : 'text-danger'}>
+                                                {profitCalc.profitPercentage.toFixed(1)}%
+                                            </span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="breakdown-row breakdown-total">
+                                        <span>Profit</span>
+                                        <span className="text-muted">—</span>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="customer-meta">
