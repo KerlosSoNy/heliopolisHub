@@ -93,7 +93,7 @@ export default function Dashboard() {
                         <tr>
                             <th>Order ID</th>
                             <th>Client</th>
-                            <th>Product</th>
+                            <th>Product Count</th>
                             <th>Price (EGP)</th>
                             <th>Date</th>
                         </tr>
@@ -103,7 +103,7 @@ export default function Dashboard() {
                             <tr key={order.$id}>
                                 <td>{order.$id.slice(0, 8)}...</td>
                                 <td>{order.client}</td>
-                                <td>{order.product}</td>
+                                <td>{order.products?.length || 'N/A'}</td>
                                 <td>{order.price_egp} EGP</td>
                                 <td>{new Date(order.$createdAt).toLocaleDateString()}</td>
                             </tr>

@@ -25,8 +25,10 @@ function AppLayout() {
   return (
     <div className="app">
       <aside className="sidebar">
-        <h2 className="logo">📊 Dashboard</h2>
-        <nav>
+        <h2 className="logo border-0! flex flex-row items-center">
+          <img src="logo.png" alt="Heliopolis Hub" className='w-15 me-2! ' />
+          Dashboard</h2>
+        <nav className=' border-t! pt-3! border-gray-600! -mt-7!'>
           <NavLink to="/" end>
             <LayoutDashboard size={18} /> Overview
           </NavLink>

@@ -32,11 +32,13 @@ export default function Login() {
 
     return (
         <div className="login-page">
-            <div className="login-card">
+            <div className="login-card overflow-hidden">
                 {/* Header */}
                 <div className="login-header">
-                    <div className="login-logo">📊</div>
-                    <h1>{isRegister ? 'Create Account' : 'Welcome Back'}</h1>
+                    <div className="login-logo">
+                        <img src="logo.png" alt="Heliopolis Hub" className='w-80 mx-auto! -mt-20!' />
+                    </div>
+                    <h1 className='font-bold text-[32px] -mt-20!'>{isRegister ? 'Create Account' : 'Welcome Back'}</h1>
                     <p>{isRegister ? 'Sign up to get started' : 'Login to your dashboard'}</p>
                 </div>
 

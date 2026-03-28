@@ -262,7 +262,7 @@ export default function Products() {
             </div>
 
             {/* Product Cards */}
-            <div className="flex flex-row items-center h-140 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
+            <div className="flex flex-row items-center h-150 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
                 {filteredProducts.map((p) => {
                     const calc = calcAll(p);
                     const order = getOrderForProduct(p);
@@ -283,9 +283,6 @@ export default function Products() {
 
                             <h3 className="product-name">
                                 {p.name}
-                                {stock.color === 'red' && (
-                                    <span className="oos-badge"><XCircle size={12} /> Out of Stock</span>
-                                )}
                             </h3>
 
                             {/* Client name from order */}

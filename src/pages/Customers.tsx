@@ -165,12 +165,12 @@ export default function Customers() {
             </div>
 
             {/* Cards */}
-            <div className="customer-grid">
+            <div className="flex flex-row items-center h-105 gap-4 max-w-full! overflow-x-auto! py-5! my-5!">
                 {filteredCustomers.map((c) => {
                     const deposit = parseFloat(c.deposite || '0');
 
                     return (
-                        <div key={c.$id} className="customer-card">
+                        <div key={c.$id} className="customer-card shrink-0!">
                             <div className="customer-card-header">
                                 <div className="customer-avatar">
                                     {c.name.charAt(0).toUpperCase()}
