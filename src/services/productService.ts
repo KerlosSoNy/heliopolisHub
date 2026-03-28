@@ -2,7 +2,7 @@ import { databases, DATABASE_ID, COLLECTIONS, ID, Query } from '../lib/appwrite'
 import type { Product, ProductForm } from '../types';
 
 export const productService = {
-  async list(limit = 25, offset = 0): Promise<Product[]> {
+  async list(limit = 100, offset = 0): Promise<Product[]> {
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.PRODUCTS,
@@ -18,14 +18,20 @@ export const productService = {
 
   async create(data: ProductForm): Promise<Product> {
     const response = await databases.createDocument(
-      DATABASE_ID, COLLECTIONS.PRODUCTS, ID.unique(), data
+      DATABASE_ID,
+      COLLECTIONS.PRODUCTS,
+      ID.unique(),
+      data
     );
     return response as unknown as Product;
   },
 
   async update(id: string, data: Partial<ProductForm>): Promise<Product> {
     const response = await databases.updateDocument(
-      DATABASE_ID, COLLECTIONS.PRODUCTS, id, data
+      DATABASE_ID,
+      COLLECTIONS.PRODUCTS,
+      id,
+      data
     );
     return response as unknown as Product;
   },
@@ -36,8 +42,44 @@ export const productService = {
 
   async count(): Promise<number> {
     const response = await databases.listDocuments(
-      DATABASE_ID, COLLECTIONS.PRODUCTS, [Query.limit(1)]
+      DATABASE_ID,
+      COLLECTIONS.PRODUCTS,
+      [Query.limit(1)]
     );
     return response.total;
+  },
+
+  // Link products to order
+  async linkToOrder(productIds: string[], orderId: string): Promise<void> {
+    await Promise.all(
+      productIds.map((id) =>
+        databases.updateDocument(DATABASE_ID, COLLECTIONS.PRODUCTS, id, {
+          order_id: orderId,
+        })
+      )
+    );
+  },
+
+  // 👇 NEW: Decrease product count after order
+  async decreaseCount(productId: string, qty: number): Promise<void> {
+    // Get current product
+    const product = await this.get(productId);
+    const currentCount = parseInt(product.count) || 0;
+    const newCount = Math.max(0, currentCount - qty);
+
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRODUCTS, productId, {
+      count: newCount.toString(),
+    });
+  },
+
+  // 👇 NEW: Increase count (for order delete/undo)
+  async increaseCount(productId: string, qty: number): Promise<void> {
+    const product = await this.get(productId);
+    const currentCount = parseInt(product.count) || 0;
+    const newCount = currentCount + qty;
+
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRODUCTS, productId, {
+      count: newCount.toString(),
+    });
   },
 };

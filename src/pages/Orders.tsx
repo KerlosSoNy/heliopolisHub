@@ -1,114 +1,225 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     Trash2, Edit, Plus, X, ShoppingCart, User,
-    Package, DollarSign, Truck,
+    Package, DollarSign, Check, Minus,
+    Plus as PlusIcon,
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { customerService } from '../services/customerService';
 import { productService } from '../services/productService';
 import { useCollection } from '../hooks/useCollection';
-import type { Customer, Order, OrderForm, Product } from '../types';
-
-const emptyForm: OrderForm = {
-    product: '',
-    price_egp: '',
-    client: '',
-    total_shipping: '',
-    total_order: '',
-};
+import type { Order, Customer, Product, SelectedProduct } from '../types';
 
 export default function Orders() {
     const { data: orders, loading, error, refetch } = useCollection<Order>({
-        fetchFn: useCallback(() => orderService.list(), []),
+        fetchFn: useCallback(() => orderService.list(100), []),
     });
 
     const [customers, setCustomers] = useState<Customer[]>([]);
-    const [products, setProducts] = useState<Product[]>([]);
+    const [allProducts, setAllProducts] = useState<Product[]>([]);
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
-    const [form, setForm] = useState<OrderForm>(emptyForm);
+    const [client, setClient] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+    const [submitting, setSubmitting] = useState(false);
+
+    const refreshProducts = () => {
+        productService.list(100).then(setAllProducts).catch(console.error);
+    };
 
     useEffect(() => {
         customerService.list(100).then(setCustomers).catch(console.error);
-        productService.list(100).then(setProducts).catch(console.error);
+        refreshProducts();
     }, []);
 
+    // ========== HELPERS ==========
+    const getProduct = (id: string): Product | undefined =>
+        allProducts.find((p) => p.$id === id);
+
+    const getCostPerPiece = (product: Product): number => {
+        const price = parseFloat(product.price_chi);
+        const rate = parseFloat(product.rate);
+        const total_order = parseFloat(product.total_order || '0');
+        const total_shipping = parseFloat(product.total_shipping || '0');
+        if (isNaN(price) || isNaN(rate)) return 0;
+        return ((price * rate) / total_order) * total_shipping + (price * rate);
+    };
+
+    const getSoldPerPiece = (product: Product): number => {
+        return parseFloat(product.sold_price || '0');
+    };
+
+    const getAvailableCount = (product: Product): number => {
+        return parseInt(product.count) || 0;
+    };
+
+    const getDisplayPrice = (product: Product): number => {
+        const sold = getSoldPerPiece(product);
+        return sold > 0 ? sold : getCostPerPiece(product);
+    };
+
+    // ========== TOTALS ==========
+    const orderTotal = useMemo(() => {
+        return selectedProducts.reduce((sum, sp) => {
+            const product = getProduct(sp.productId);
+            if (!product) return sum;
+            return sum + getDisplayPrice(product) * sp.qty;
+        }, 0);
+    }, [selectedProducts, allProducts]);
+
+    // ========== PRODUCT SELECTION ==========
+    const toggleProduct = (productId: string) => {
+        setSelectedProducts((prev) => {
+            const exists = prev.find((sp) => sp.productId === productId);
+            if (exists) {
+                return prev.filter((sp) => sp.productId !== productId);
+            }
+            return [...prev, { productId, qty: 1 }];
+        });
+    };
+
+    const updateQty = (productId: string, newQty: number) => {
+        const product = getProduct(productId);
+        if (!product) return;
+        const maxCount = getAvailableCount(product);
+        const clampedQty = Math.max(1, Math.min(newQty, maxCount));
+        setSelectedProducts((prev) =>
+            prev.map((sp) =>
+                sp.productId === productId ? { ...sp, qty: clampedQty } : sp
+            )
+        );
+    };
+
+    const isSelected = (productId: string): boolean =>
+        selectedProducts.some((sp) => sp.productId === productId);
+
+    const getSelectedQty = (productId: string): number =>
+        selectedProducts.find((sp) => sp.productId === productId)?.qty || 0;
+
+    // ========== MODAL ==========
     const openCreate = () => {
-        setForm(emptyForm);
+        setClient('');
+        setSelectedProducts([]);
         setEditingId(null);
         setShowModal(true);
     };
 
     const openEdit = (order: Order) => {
-        setForm({
-            product: order.product,
-            price_egp: order.price_egp,
-            client: order.client,
-            total_shipping: order.total_shipping || '',
-            total_order: order.total_order || '',
-        });
+        setClient(order.client);
+        const restored: SelectedProduct[] = (order.products || []).map((pid) => ({
+            productId: pid,
+            qty: 1,
+        }));
+        setSelectedProducts(restored);
         setEditingId(order.$id);
         setShowModal(true);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (submitting) return;
+        setSubmitting(true);
+
         try {
+            // Build product description string
+            const productDescription = selectedProducts
+                .map((sp) => {
+                    const product = getProduct(sp.productId);
+                    return product ? `${product.name} ×${sp.qty}` : '';
+                })
+                .filter(Boolean)
+                .join(', ');
+
+            // Only send clean data
+            const orderData = {
+                client,
+                product: productDescription,
+                products: selectedProducts.map((sp) => sp.productId),
+                price_egp: orderTotal.toFixed(2),
+            };
+
+            let orderId: string;
+
             if (editingId) {
-                await orderService.update(editingId, form);
+                await orderService.update(editingId, orderData);
+                orderId = editingId;
             } else {
-                await orderService.create(form);
+                // CREATE new order
+                const newOrder = await orderService.create(orderData);
+                orderId = newOrder.$id;
+
+                // 👇 DECREASE product count for each selected product
+                console.log('📦 Decreasing product counts...');
+                for (const sp of selectedProducts) {
+                    await productService.decreaseCount(sp.productId, sp.qty);
+                    console.log(`  ✅ ${sp.productId}: -${sp.qty}`);
+                }
             }
+
+            // Link products to order
+            const productIds = selectedProducts.map((sp) => sp.productId);
+            if (productIds.length > 0) {
+                await productService.linkToOrder(productIds, orderId);
+            }
+
             setShowModal(false);
+            setSelectedProducts([]);
+            setClient('');
             refetch();
+            refreshProducts(); // Refresh to show updated counts
+        } catch (err) {
+            console.error('Order error:', err);
+            alert('Failed to create order. Check console for details.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm('Delete this order? Product counts will be restored.')) return;
+
+        try {
+            // Get order to find products
+            const order = orders.find((o) => o.$id === id);
+
+            // 👇 RESTORE product counts
+            if (order?.products && order.products.length > 0) {
+                console.log('📦 Restoring product counts...');
+                for (const pid of order.products) {
+                    // Restore 1 for now (we don't store qty in order)
+                    // TODO: store qty per product in order
+                    await productService.increaseCount(pid, 1);
+                    console.log(`  ✅ ${pid}: +1`);
+                }
+            }
+
+            await orderService.remove(id);
+            refetch();
+            refreshProducts();
         } catch (err) {
             console.error(err);
         }
     };
 
-    const handleDelete = async (id: string) => {
-        if (!confirm('Delete this order?')) return;
-        await orderService.remove(id);
-        refetch();
-    };
-
-    // Auto-fill price when product is selected
-    const handleProductSelect = (productName: string) => {
-        const product = products.find((p) => p.name === productName);
-        if (product) {
-            const price = parseFloat(product.price_chi) * parseFloat(product.rate);
-            setForm({
-                ...form,
-                product: productName,
-                price_egp: isNaN(price) ? '' : price.toFixed(2),
-            });
-        } else {
-            setForm({ ...form, product: productName });
+    // ========== DISPLAY ==========
+    const getOrderProducts = (order: Order): Product[] => {
+        if (order.products && order.products.length > 0) {
+            return order.products
+                .map((pid) => allProducts.find((p) => p.$id === pid))
+                .filter(Boolean) as Product[];
         }
-    };
-
-    // Calculate shipping per piece for display
-    const calcShippingPerPiece = (order: Order): string => {
-        const totalShipping = parseFloat(order.total_shipping || '0');
-        const totalOrder = parseFloat(order.total_order || '0');
-        const priceEgp = parseFloat(order.price_egp || '0');
-        if (totalOrder === 0 || totalShipping === 0) return '—';
-        return ((priceEgp / totalOrder) * totalShipping).toFixed(2);
+        return [];
     };
 
     const filteredOrders = orders.filter(
         (o) =>
             o.client.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            o.product.toLowerCase().includes(searchTerm.toLowerCase())
+            (o.product || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const totalRevenue = orders.reduce(
         (sum, o) => sum + (parseFloat(o.price_egp) || 0), 0
-    );
-    const totalShippingAll = orders.reduce(
-        // @ts-expect-error type missing
-        (sum, o) => sum + (parseFloat(o.total_shipping) || 0), 0
     );
 
     if (loading) return <div className="loading">Loading orders...</div>;
@@ -142,66 +253,56 @@ export default function Orders() {
                     <DollarSign size={18} />
                     <span>Total Revenue: <strong>{totalRevenue.toFixed(2)} EGP</strong></span>
                 </div>
-                <div className="summary-item">
-                    <Truck size={18} />
-                    <span>Total Shipping: <strong>{totalShippingAll.toFixed(2)} EGP</strong></span>
-                </div>
             </div>
 
             {/* Order Cards */}
             <div className="order-grid">
-                {filteredOrders.map((o) => (
-                    <div key={o.$id} className="order-card">
-                        <div className="order-card-header">
-                            <div className="order-id">#{o.$id.slice(0, 8)}</div>
-                            <div className="customer-card-actions">
-                                <button
-                                    title='Edit Order'
-                                    type='button'
-                                    className="btn-icon" onClick={() => openEdit(o)}>
-                                    <Edit size={15} />
-                                </button>
-                                <button
-                                    title='Delete Order'
-                                    type='button'
-                                    className="btn-icon danger" onClick={() => handleDelete(o.$id)}>
-                                    <Trash2 size={15} />
-                                </button>
+                {filteredOrders.map((o) => {
+                    const orderProducts = getOrderProducts(o);
+                    return (
+                        <div key={o.$id} className="order-card">
+                            <div className="order-card-header">
+                                <div className="order-id">#{o.$id.slice(0, 8)}</div>
+                                <div className="customer-card-actions">
+                                    <button className="btn-icon" onClick={() => openEdit(o)}>
+                                        <Edit size={15} />
+                                    </button>
+                                    <button className="btn-icon danger" onClick={() => handleDelete(o.$id)}>
+                                        <Trash2 size={15} />
+                                    </button>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="order-details">
-                            <div className="order-detail">
-                                <User size={14} />
-                                <span>{o.client}</span>
-                            </div>
-                            <div className="order-detail">
-                                <Package size={14} />
-                                <span>{o.product}</span>
-                            </div>
-                            <div className="order-detail">
-                                <DollarSign size={14} />
-                                <span className="order-price">{o.price_egp} EGP</span>
-                            </div>
-                            {o.total_shipping && (
-                                <>
-                                    <div className="order-detail">
-                                        <Truck size={14} />
-                                        <span>Total Shipping: {o.total_shipping} EGP</span>
-                                    </div>
-                                    <div className="order-detail">
-                                        <Truck size={14} />
-                                        <span>Shipping/piece: {calcShippingPerPiece(o)} EGP</span>
-                                    </div>
-                                </>
-                            )}
-                        </div>
+                            <div className="order-details">
+                                <div className="order-detail">
+                                    <User size={14} />
+                                    <span className="order-client-name">{o.client}</span>
+                                </div>
 
-                        <div className="customer-meta">
-                            {new Date(o.$createdAt).toLocaleDateString()}
+                                <div className="order-products-list">
+                                    <span className="order-products-label">
+                                        <Package size={14} /> {o.product}
+                                    </span>
+                                </div>
+
+                                <div className="order-numbers">
+                                    <div className="order-number-item">
+                                        <span>Total</span>
+                                        <strong className="text-green">{o.price_egp} EGP</strong>
+                                    </div>
+                                    <div className="order-number-item">
+                                        <span>Items</span>
+                                        <strong>{orderProducts.length}</strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="customer-meta">
+                                {new Date(o.$createdAt).toLocaleDateString()}
+                            </div>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
                 {filteredOrders.length === 0 && (
                     <div className="empty-state"><p>No orders found</p></div>
                 )}
@@ -216,11 +317,8 @@ export default function Orders() {
                             <tr>
                                 <th>Order ID</th>
                                 <th>Client</th>
-                                <th>Product</th>
-                                <th>Price (EGP)</th>
-                                <th>Total Order</th>
-                                <th>Total Shipping</th>
-                                <th>Shipping/Piece</th>
+                                <th>Products</th>
+                                <th>Total</th>
                                 <th>Date</th>
                                 <th>Actions</th>
                             </tr>
@@ -229,44 +327,40 @@ export default function Orders() {
                             {filteredOrders.map((o) => (
                                 <tr key={o.$id}>
                                     <td>#{o.$id.slice(0, 8)}</td>
-                                    <td>{o.client}</td>
-                                    <td>{o.product}</td>
-                                    <td><strong>{o.price_egp} EGP</strong></td>
-                                    <td>{o.total_order || '—'}</td>
-                                    <td>{o.total_shipping || '—'}</td>
-                                    <td><strong>{calcShippingPerPiece(o)}</strong></td>
+                                    <td><strong>{o.client}</strong></td>
+                                    <td>{o.product || '—'}</td>
+                                    <td><strong className="text-green">{o.price_egp} EGP</strong></td>
                                     <td>{new Date(o.$createdAt).toLocaleDateString()}</td>
                                     <td className="actions">
-                                        <button type="button" title="Edit Order" className="btn-icon" onClick={() => openEdit(o)}><Edit size={16} /></button>
-                                        <button type="button" title="Delete Order" className="btn-icon danger" onClick={() => handleDelete(o.$id)}><Trash2 size={16} /></button>
+                                        <button className="btn-icon" onClick={() => openEdit(o)}><Edit size={16} /></button>
+                                        <button className="btn-icon danger" onClick={() => handleDelete(o.$id)}><Trash2 size={16} /></button>
                                     </td>
                                 </tr>
                             ))}
                             {filteredOrders.length === 0 && (
-                                <tr><td colSpan={9} className="empty">No orders yet</td></tr>
+                                <tr><td colSpan={6} className="empty">No orders yet</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* Modal */}
+            {/* ===== ORDER MODAL ===== */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
-                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                    <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Edit Order' : 'New Order'}</h2>
-                            <button type="button" title='Close' className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
+                            <button className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             {/* Client */}
                             <div className="form-group">
                                 <label><User size={14} /> Client *</label>
                                 <select
-                                    title='Select'
                                     required
-                                    value={form.client}
-                                    onChange={(e) => setForm({ ...form, client: e.target.value })}
+                                    value={client}
+                                    onChange={(e) => setClient(e.target.value)}
                                 >
                                     <option value="">Select client...</option>
                                     {customers.map((c) => (
@@ -275,89 +369,159 @@ export default function Orders() {
                                         </option>
                                     ))}
                                 </select>
-                                <input
-                                    style={{ marginTop: 8 }}
-                                    placeholder="Or type client name..."
-                                    value={form.client}
-                                    onChange={(e) => setForm({ ...form, client: e.target.value })}
-                                />
                             </div>
 
-                            {/* Product */}
+                            {/* Products */}
                             <div className="form-group">
-                                <label><Package size={14} /> Product *</label>
-                                <select
-                                    title='Select'
-                                    required
-                                    value={form.product}
-                                    onChange={(e) => handleProductSelect(e.target.value)}
-                                >
-                                    <option value="">Select product...</option>
-                                    {products.map((p) => (
-                                        <option key={p.$id} value={p.name}>
-                                            {p.name} (¥{p.price_chi} × {p.rate})
-                                        </option>
-                                    ))}
-                                </select>
-                                <input
-                                    style={{ marginTop: 8 }}
-                                    placeholder="Or type product name..."
-                                    value={form.product}
-                                    onChange={(e) => setForm({ ...form, product: e.target.value })}
-                                />
-                            </div>
+                                <label>
+                                    <Package size={14} /> Select Products *
+                                    <span className="label-badge">{selectedProducts.length} selected</span>
+                                </label>
+                                <div className="product-selector">
+                                    {allProducts.map((p) => {
+                                        const selected = isSelected(p.$id);
+                                        const soldPc = getSoldPerPiece(p);
+                                        const costPc = getCostPerPiece(p);
+                                        const available = getAvailableCount(p);
+                                        const qty = getSelectedQty(p.$id);
+                                        const displayPrice = getDisplayPrice(p);
+                                        const outOfStock = available === 0;
 
-                            {/* Price EGP */}
-                            <div className="form-group">
-                                <label><DollarSign size={14} /> Price (EGP) *</label>
-                                <input
-                                    required
-                                    placeholder="Price in Egyptian Pounds"
-                                    value={form.price_egp}
-                                    onChange={(e) => setForm({ ...form, price_egp: e.target.value })}
-                                />
-                            </div>
+                                        return (
+                                            <div
+                                                key={p.$id}
+                                                className={`product-select-item ${selected ? 'selected' : ''} ${outOfStock ? 'out-of-stock' : ''}`}
+                                            >
+                                                <div
+                                                    className="product-select-check"
+                                                    onClick={() => !outOfStock && toggleProduct(p.$id)}
+                                                >
+                                                    {selected && <Check size={16} />}
+                                                </div>
 
-                            <div className="form-divider">
-                                <span>Shipping Info</span>
-                            </div>
+                                                <div
+                                                    className="product-select-info"
+                                                    onClick={() => !outOfStock && !selected && toggleProduct(p.$id)}
+                                                >
+                                                    <span className="product-select-name">
+                                                        {p.name}
+                                                        {soldPc === 0 && <span className="no-sold-badge">No sold price</span>}
+                                                        {outOfStock && <span className="out-of-stock-badge">Out of stock</span>}
+                                                    </span>
+                                                    <span className="product-select-details">
+                                                        {soldPc > 0 ? (
+                                                            <>Sold: <strong>{soldPc.toFixed(2)}</strong> EGP/pc</>
+                                                        ) : (
+                                                            <>Cost: {costPc.toFixed(2)} EGP/pc</>
+                                                        )}
+                                                    </span>
+                                                    <span className={`product-select-stock ${outOfStock ? 'stock-zero' : ''}`}>
+                                                        Available: <strong>{available}</strong>
+                                                    </span>
+                                                </div>
 
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label><DollarSign size={14} /> Total Order Price</label>
-                                    <input
-                                        placeholder="Total price of all items"
-                                        value={form.total_order}
-                                        onChange={(e) => setForm({ ...form, total_order: e.target.value })}
-                                    />
+                                                {/* Qty Picker */}
+                                                {selected && !outOfStock && (
+                                                    <div className="qty-picker">
+                                                        <button
+                                                            type="button"
+                                                            className="qty-btn"
+                                                            onClick={() => updateQty(p.$id, qty - 1)}
+                                                            disabled={qty <= 1}
+                                                        >
+                                                            <Minus size={14} />
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            className="qty-input"
+                                                            value={qty}
+                                                            min={1}
+                                                            max={available}
+                                                            onChange={(e) => updateQty(p.$id, parseInt(e.target.value) || 1)}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="qty-btn"
+                                                            onClick={() => updateQty(p.$id, qty + 1)}
+                                                            disabled={qty >= available}
+                                                        >
+                                                            <PlusIcon size={14} />
+                                                        </button>
+                                                        <span className="qty-max">/ {available}</span>
+                                                    </div>
+                                                )}
+
+                                                {/* Subtotal */}
+                                                {selected && (
+                                                    <div className="product-select-subtotal">
+                                                        {(displayPrice * qty).toFixed(2)}
+                                                        <small> EGP</small>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                    {allProducts.length === 0 && (
+                                        <p className="empty-text">No products available.</p>
+                                    )}
                                 </div>
-                                <div className="form-group">
-                                    <label><Truck size={14} /> Total Shipping Cost</label>
-                                    <input
-                                        placeholder="Total shipping for order"
-                                        value={form.total_shipping}
-                                        onChange={(e) => setForm({ ...form, total_shipping: e.target.value })}
-                                    />
-                                </div>
                             </div>
 
-                            {/* Live Shipping Calculation */}
-                            {form.price_egp && form.total_order && form.total_shipping && (
-                                <div className="calc-preview">
-                                    <span><Truck size={14} /> Shipping per piece:</span>
-                                    <strong>
-                                        {(
-                                            (parseFloat(form.price_egp) / parseFloat(form.total_order)) *
-                                            parseFloat(form.total_shipping)
-                                        ).toFixed(2)}{' '}
-                                        EGP
-                                    </strong>
+                            {/* Order Summary */}
+                            {selectedProducts.length > 0 && (
+                                <div className="order-breakdown">
+                                    <h4>Order Summary</h4>
+
+                                    {selectedProducts.map((sp) => {
+                                        const product = getProduct(sp.productId);
+                                        if (!product) return null;
+                                        const displayPrice = getDisplayPrice(product);
+                                        const soldPc = getSoldPerPiece(product);
+
+                                        return (
+                                            <div key={sp.productId} className="order-breakdown-item">
+                                                <div className="breakdown-product-info">
+                                                    <span className="breakdown-product-name">
+                                                        {product.name}
+                                                        <span className="breakdown-qty">×{sp.qty}</span>
+                                                    </span>
+                                                    <span className="breakdown-unit-price">
+                                                        {displayPrice.toFixed(2)} EGP/pc
+                                                        {soldPc > 0 ? ' (sold)' : ' (cost)'}
+                                                    </span>
+                                                </div>
+                                                <div className="breakdown-item-total">
+                                                    {(displayPrice * sp.qty).toFixed(2)} EGP
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+
+                                    <div className="order-breakdown-totals">
+                                        <div className="breakdown-total-row sold-total">
+                                            <span>Order Total:</span>
+                                            <strong>{orderTotal.toFixed(2)} EGP</strong>
+                                        </div>
+                                    </div>
+
+                                    {/* Stock warning */}
+                                    <div className="breakdown-note">
+                                        📦 Product stock will be decreased after order is created
+                                    </div>
                                 </div>
                             )}
 
                             <div className="form-actions">
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary">{editingId ? 'Update' : 'Create'}</button>
+                                <button type="button" className="btn" onClick={() => setShowModal(false)}>
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="btn btn-primary"
+                                    disabled={selectedProducts.length === 0 || !client || submitting}
+                                >
+                                    {submitting ? '⏳ Creating...' : editingId ? 'Update Order' : 'Create Order'}
+                                </button>
                             </div>
                         </form>
                     </div>

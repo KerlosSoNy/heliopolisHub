@@ -20,6 +20,9 @@ export interface Product {
   price_chi: string;
   rate: string;
   sold_price?: string;
+  order_id?: string;
+  total_order?: string;
+  total_shipping?: string;
 }
 
 export type ProductForm = Omit<Product, '$id' | '$createdAt' | '$updatedAt'>;
@@ -29,11 +32,25 @@ export interface Order {
   $id: string;
   $createdAt: string;
   $updatedAt: string;
-  product: string;
-  price_egp: string;
   client: string;
+  product: string;
+  products?: string[];
+  price_egp: string;
   total_shipping?: string;
   total_order?: string;
 }
 
-export type OrderForm = Omit<Order, '$id' | '$createdAt' | '$updatedAt'>;
+export type OrderForm = {
+  client: string;
+  product: string;
+  products: string[];
+  price_egp: string;
+  total_shipping: string;
+  total_order: string;
+};
+
+// NEW: track selected product with quantity
+export interface SelectedProduct {
+  productId: string;
+  qty: number;
+}

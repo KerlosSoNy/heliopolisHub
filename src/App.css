@@ -852,3 +852,822 @@ tfoot .totals-row td {
   padding: 14px 12px;
   font-size: 0.9rem;
 }
+
+/* ========== PRODUCT SELECTOR (Order Modal) ========== */
+.product-selector {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 2px solid #e8e8e8;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.product-select-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 2px solid transparent;
+}
+
+.product-select-item:hover {
+  background: #f8f9fa;
+}
+
+.product-select-item.selected {
+  background: #f0edff;
+  border-color: #6c63ff;
+}
+
+.product-select-check {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 2px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: white;
+  transition: all 0.15s;
+}
+
+.product-select-item.selected .product-select-check {
+  background: #6c63ff;
+  border-color: #6c63ff;
+}
+
+.product-select-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-select-name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1a1a2e;
+}
+
+.product-select-details {
+  display: block;
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+.product-select-price {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #6c63ff;
+  white-space: nowrap;
+}
+
+.label-badge {
+  display: inline-block;
+  background: #6c63ff;
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+/* ========== ORDER TOTAL PREVIEW ========== */
+.order-total-preview {
+  background: #f0f7ff;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.total-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #1a73e8;
+}
+
+/* ========== SHIPPING PREVIEW (Modal) ========== */
+.shipping-preview {
+  background: #fef9ef;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.shipping-preview h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+
+.shipping-preview-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 0.82rem;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+.shipping-preview-item:last-child {
+  border-bottom: none;
+}
+
+.shipping-preview-calc {
+  text-align: right;
+}
+
+.shipping-preview-calc small {
+  display: block;
+  color: #aaa;
+  font-size: 0.7rem;
+}
+
+.shipping-preview-calc strong {
+  color: #92400e;
+}
+
+/* ========== ORDER CARD UPDATES ========== */
+.order-client-name {
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.order-products-list {
+  padding: 8px 0;
+}
+
+.order-products-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 6px;
+}
+
+.order-product-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-chip {
+  background: #f0edff;
+  color: #6c63ff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.product-chip-sm {
+  background: #f0edff;
+  color: #6c63ff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.table-product-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.order-product-text {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.order-numbers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.order-number-item {
+  background: #f8f9fa;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.order-number-item span {
+  display: block;
+  font-size: 0.7rem;
+  color: #888;
+}
+
+.order-number-item strong {
+  font-size: 0.85rem;
+  color: #1a1a2e;
+}
+
+.shipping-breakdown {
+  margin-top: 10px;
+  padding: 10px;
+  background: #fef9ef;
+  border-radius: 8px;
+}
+
+.breakdown-title {
+  display: block;
+  font-size: 0.75rem;
+  color: #92400e;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  padding: 3px 0;
+  color: #555;
+}
+
+.product-order-badge {
+  display: inline-block;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+.form-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 4px;
+}
+
+.empty-text {
+  text-align: center;
+  padding: 20px;
+  color: #aaa;
+  font-size: 0.85rem;
+}
+
+.modal-lg {
+  max-width: 640px;
+}
+
+
+/* ========== INLINE EDIT ========== */
+.inline-edit-section {
+  background: #f8f9fa;
+  border: 2px solid #6c63ff;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.inline-edit-row {
+  margin-bottom: 10px;
+}
+
+.inline-edit-row label {
+  display: block;
+  font-size: 0.72rem;
+  color: #666;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.inline-edit-row input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.inline-edit-row input:focus {
+  outline: none;
+  border-color: #6c63ff;
+}
+
+.inline-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-outline-full {
+  width: 100%;
+  justify-content: center;
+  border: 2px dashed #ddd;
+  color: #888;
+  background: transparent;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-outline-full:hover {
+  border-color: #6c63ff;
+  color: #6c63ff;
+  background: #f8f6ff;
+}
+
+/* ========== ORDER MODAL FIXES ========== */
+.product-select-price small {
+  display: block;
+  font-size: 0.65rem;
+  color: #999;
+  font-weight: 400;
+}
+
+.total-preview-breakdown {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(26, 115, 232, 0.2);
+}
+
+.total-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  padding: 3px 0;
+  color: #1a73e8;
+  opacity: 0.8;
+}
+
+/* ========== PRODUCT CHIP DETAIL ========== */
+.product-chip-detail {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.chip-name {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+}
+
+.chip-info {
+  display: block;
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+
+/* ========== QTY PICKER ========== */
+.qty-picker {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.qty-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #555;
+}
+
+.qty-btn:hover:not(:disabled) {
+  border-color: #6c63ff;
+  color: #6c63ff;
+  background: #f8f6ff;
+}
+
+.qty-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.qty-input {
+  width: 44px;
+  height: 28px;
+  text-align: center;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1a1a2e;
+  -moz-appearance: textfield;
+}
+
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qty-input:focus {
+  outline: none;
+  border-color: #6c63ff;
+}
+
+.qty-max {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-left: 2px;
+}
+
+/* ========== PRODUCT SELECT UPDATES ========== */
+.product-select-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 2px solid transparent;
+  flex-wrap: wrap;
+}
+
+.product-select-item:hover {
+  background: #f8f9fa;
+}
+
+.product-select-item.selected {
+  background: #f8f6ff;
+  border-color: #6c63ff;
+  cursor: default;
+}
+
+.product-select-stock {
+  display: block;
+  font-size: 0.72rem;
+  color: #16a34a;
+  margin-top: 2px;
+}
+
+.no-sold-badge {
+  display: inline-block;
+  background: #fef3cd;
+  color: #856404;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+.product-select-subtotal {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #6c63ff;
+  white-space: nowrap;
+  min-width: 80px;
+  text-align: right;
+}
+
+.product-select-subtotal small {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #999;
+}
+
+/* ========== ORDER BREAKDOWN ========== */
+.order-breakdown {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e8e8e8;
+}
+
+.order-breakdown h4 {
+  font-size: 0.9rem;
+  color: #1a1a2e;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.order-breakdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.order-breakdown-item:last-of-type {
+  border-bottom: none;
+}
+
+.breakdown-product-name {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1a1a2e;
+}
+
+.breakdown-qty {
+  display: inline-block;
+  background: #6c63ff;
+  color: white;
+  font-size: 0.7rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+}
+
+.breakdown-prices {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.breakdown-cost {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.breakdown-sold {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+
+/* ========== ORDER BREAKDOWN TOTALS ========== */
+.order-breakdown-totals {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid #e0e0e0;
+}
+
+.breakdown-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.breakdown-total-row.sold-total {
+  font-size: 0.95rem;
+  color: #1a1a2e;
+}
+
+.breakdown-total-row.sold-total strong {
+  color: #16a34a;
+}
+
+.breakdown-total-row.profit-row {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  color: #16a34a;
+}
+
+.breakdown-total-row.profit-row strong {
+  color: #16a34a;
+}
+
+.breakdown-total-row.loss-row {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  color: #dc2626;
+}
+
+.breakdown-total-row.loss-row strong {
+  color: #dc2626;
+}
+
+/* ========== OUT OF STOCK ========== */
+.product-select-item.out-of-stock {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+}
+
+.product-select-item.out-of-stock .product-select-info {
+  cursor: not-allowed;
+}
+
+.out-of-stock-badge {
+  display: inline-block;
+  background: #fee;
+  color: #dc2626;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+.stock-zero {
+  color: #dc2626 !important;
+}
+
+.stock-zero strong {
+  color: #dc2626 !important;
+}
+
+
+/* ========== STOCK STATUS ========== */
+.stock-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.stock-bar-green {
+  background: #ecfdf5;
+  color: #16a34a;
+}
+
+.stock-bar-orange {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.stock-bar-red {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Stock count colors in cards */
+.stock-green { color: #16a34a !important; }
+.stock-orange { color: #d97706 !important; }
+.stock-red { color: #dc2626 !important; font-weight: 700; }
+
+/* Out of stock card */
+.product-card-oos {
+  border: 2px solid #fecaca;
+  opacity: 0.85;
+}
+
+/* Out of stock badge on card name */
+.oos-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: 8px;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+/* Client badge on card */
+.product-client-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #e8f0fe;
+  color: #1a73e8;
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+
+/* ========== TABLE STOCK BADGES ========== */
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.stock-badge-green {
+  background: #ecfdf5;
+  color: #16a34a;
+}
+
+.stock-badge-orange {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.stock-badge-red {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Table out of stock row */
+.row-oos {
+  background: #fef2f2 !important;
+}
+
+.row-oos:hover {
+  background: #fee2e2 !important;
+}
+
+/* Table OOS badge next to name */
+.table-oos-badge {
+  display: block;
+  font-size: 0.6rem;
+  color: #dc2626;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-top: 2px;
+}
+
+/* Table client cell */
+.table-client {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.82rem;
+  color: #1a73e8;
+  font-weight: 500;
+}
+
+.text-muted {
+  color: #ccc;
+}
+
+
+/* ========== PROFIT PREVIEW BOX ========== */
+.profit-preview-box {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 16px;
+  border: 1px solid #e8e8e8;
+}
+
+.profit-preview-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 0.82rem;
+  color: #555;
+}
+
+.profit-preview-row span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profit-preview-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.profit-preview-total.profit-positive {
+  color: #16a34a;
+}
+
+.profit-preview-total.profit-negative {
+  color: #dc2626;
+}
