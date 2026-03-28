@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, COLLECTIONS, ID, Query } from '../lib/appwrite';
-import type { DepositHistory, DepositHistoryForm } from '../types';
+import type { DepositHistory } from '../types';
 
 export const depositHistoryService = {
   // Get all history for a customer
