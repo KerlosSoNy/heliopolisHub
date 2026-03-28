@@ -38,6 +38,8 @@ export interface Order {
   price_egp: string;
   total_shipping?: string;
   total_order?: string;
+  deposite_used?: string;
+  is_paid?: string;  
 }
 
 export type OrderForm = {
@@ -54,3 +56,18 @@ export interface SelectedProduct {
   productId: string;
   qty: number;
 }
+
+
+// ========== DEPOSIT HISTORY ==========
+export interface DepositHistory {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  customer_id: string;
+  customer_name: string;
+  amount: string;
+  type: 'add' | 'use';
+  note?: string;
+}
+
+export type DepositHistoryForm = Omit<DepositHistory, '$id' | '$createdAt' | '$updatedAt'>;

@@ -257,8 +257,8 @@ export default function Products() {
                             <div className="product-card-header">
                                 <div className="product-icon"><Package size={22} /></div>
                                 <div className="customer-card-actions">
-                                    <button className="btn-icon" onClick={() => openEdit(p)}><Edit size={15} /></button>
-                                    <button className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={15} /></button>
+                                    <button type='button' title='edit' className="btn-icon" onClick={() => openEdit(p)}><Edit size={15} /></button>
+                                    <button type='button' title='delete' className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={15} /></button>
                                 </div>
                             </div>
 
@@ -473,8 +473,8 @@ export default function Products() {
                                             <button className="btn-icon" onClick={() => startInlineEdit(p)} title="Set shipping & sold">
                                                 <Truck size={16} />
                                             </button>
-                                            <button className="btn-icon" onClick={() => openEdit(p)}><Edit size={16} /></button>
-                                            <button className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={16} /></button>
+                                            <button title='Edit' type="button" className="btn-icon" onClick={() => openEdit(p)}><Edit size={16} /></button>
+                                            <button title='Delete' type="button" className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={16} /></button>
                                         </td>
                                     </tr>
                                 );
@@ -511,7 +511,7 @@ export default function Products() {
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Edit Product' : 'New Product'}</h2>
-                            <button className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
+                            <button type="button" title='Close' className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">

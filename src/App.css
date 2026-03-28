@@ -1671,3 +1671,313 @@ tfoot .totals-row td {
 .profit-preview-total.profit-negative {
   color: #dc2626;
 }
+
+/* ========== DEPOSIT ACTIONS (Card) ========== */
+.deposit-actions {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.btn-deposit-add {
+  background: #ecfdf5;
+  color: #16a34a;
+  border: 1px solid #bbf7d0;
+}
+
+.btn-deposit-add:hover {
+  background: #d1fae5;
+}
+
+.btn-deposit-history {
+  background: #f0f7ff;
+  color: #1a73e8;
+  border: 1px solid #bfdbfe;
+}
+
+.btn-deposit-history:hover {
+  background: #dbeafe;
+}
+
+/* ========== DEPOSIT BADGES (Table) ========== */
+.deposit-badge-active {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #ecfdf5;
+  color: #16a34a;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.deposit-badge-none {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #ccc;
+  font-size: 0.8rem;
+}
+
+/* ========== DEPOSIT MODAL ========== */
+.deposit-modal-customer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.deposit-modal-customer strong {
+  font-size: 1rem;
+  display: block;
+}
+
+.deposit-current {
+  font-size: 0.82rem;
+  color: #666;
+  margin-top: 2px;
+}
+
+/* ========== DEPOSIT PREVIEW ========== */
+.deposit-preview {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.deposit-preview-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.deposit-preview-total {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #ddd;
+  font-size: 0.95rem;
+  color: #1a1a2e;
+}
+
+/* ========== HISTORY LIST ========== */
+.history-list {
+  max-height: 400px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  transition: all 0.15s;
+}
+
+.history-item:hover {
+  background: #f8f9fa;
+}
+
+.history-add {
+  border-left: 3px solid #16a34a;
+}
+
+.history-use {
+  border-left: 3px solid #dc2626;
+}
+
+.history-icon {
+  flex-shrink: 0;
+}
+
+.history-add .history-icon {
+  color: #16a34a;
+}
+
+.history-use .history-icon {
+  color: #dc2626;
+}
+
+.history-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.history-note {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #1a1a2e;
+}
+
+.history-date {
+  display: block;
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+.history-amount {
+  font-weight: 700;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+
+/* ========== HISTORY SUMMARY ========== */
+.history-summary {
+  background: #f8f9fa;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.history-summary-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 0.85rem;
+}
+
+.history-summary-balance {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 2px solid #e0e0e0;
+  font-size: 1rem;
+}
+
+.empty-history {
+  text-align: center;
+  padding: 40px;
+  color: #ccc;
+}
+
+.empty-history p {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.payment-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.payment-paid {
+  background: #ecfdf5;
+  color: #16a34a;
+}
+
+.payment-unpaid {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Order card paid/unpaid */
+.order-card-paid {
+  border-left: 4px solid #16a34a;
+}
+
+.order-card-unpaid {
+  border-left: 4px solid #dc2626;
+}
+
+/* Table row colors */
+.row-paid { background: #f8fdf9; }
+.row-paid:hover { background: #ecfdf5 !important; }
+.row-unpaid { background: #fffbfb; }
+.row-unpaid:hover { background: #fef2f2 !important; }
+
+/* Payment status button in table */
+.payment-status-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.status-paid {
+  background: #ecfdf5;
+  color: #16a34a;
+}
+
+.status-paid:hover {
+  background: #d1fae5;
+}
+
+.status-unpaid {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.status-unpaid:hover {
+  background: #fee2e2;
+}
+
+/* Paid/Unpaid toggle button in card */
+.paid-btn { color: #16a34a !important; }
+.paid-btn:hover { background: #ecfdf5 !important; }
+.unpaid-btn { color: #dc2626 !important; }
+.unpaid-btn:hover { background: #fef2f2 !important; }
+
+/* ========== CUSTOMER ORDER STATS ========== */
+.customer-order-stats {
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.customer-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 0;
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.customer-stat-row span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.customer-stat-total {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #ddd;
+}
+
+/* ========== FILTER SELECT ========== */
+.filter-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: white;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #6c63ff;
+}
