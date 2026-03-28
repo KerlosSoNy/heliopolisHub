@@ -52,7 +52,7 @@ function AppLayout() {
         </div>
       </aside>
 
-      <main className="main-content">
+      <main className="w-[calc(100%-240px)] p-8! max-h-screen overflow-y-auto">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
@@ -101,7 +101,9 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <AppRoutes />
+        <div className='max-w-full w-full'>
+          <AppRoutes />
+        </div>
       </BrowserRouter>
     </AuthProvider>
   );

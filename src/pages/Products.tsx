@@ -11,6 +11,8 @@ import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
 import { useCollection } from '../hooks/useCollection';
 import type { Product, ProductForm, Order } from '../types';
+import { usePagination } from '../lib/hooks/usePagination';
+import Pagination from '../components/Pagination';
 
 const emptyForm: ProductForm = {
     name: '',
@@ -31,6 +33,8 @@ export default function Products() {
     const { data: orders } = useCollection<Order>({
         fetchFn: useCallback(() => orderService.list(100), []),
     });
+
+
 
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -171,6 +175,21 @@ export default function Products() {
         p.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    const {
+        currentPage,
+        totalPages,
+        paginatedData: paginatedProducts,
+        nextPage,
+        prevPage,
+        goToPage,
+        startIndex,
+        endIndex,
+        itemsPerPage,
+        setItemsPerPage,
+    } = usePagination({
+        data: filteredProducts,
+        itemsPerPage: 10,
+    });
     const totals = products.reduce(
         (acc, p) => {
             const calc = calcAll(p);
@@ -189,7 +208,7 @@ export default function Products() {
     if (error) return <div className="error">Error: {error}</div>;
 
     return (
-        <div className="page">
+        <div className="page overflow-hidden ">
             <div className="page-header">
                 <h1>Products ({products.length})</h1>
                 <div className="header-actions">
@@ -243,7 +262,7 @@ export default function Products() {
             </div>
 
             {/* Product Cards */}
-            <div className="product-grid">
+            <div className="flex flex-row items-center h-140 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
                 {filteredProducts.map((p) => {
                     const calc = calcAll(p);
                     const order = getOrderForProduct(p);
@@ -253,7 +272,7 @@ export default function Products() {
                     const StockIcon = stock.icon;
 
                     return (
-                        <div key={p.$id} className={`product-card ${stock.color === 'red' ? 'product-card-oos' : ''}`}>
+                        <div key={p.$id} className={`product-card ${stock.color === 'red' ? 'product-card-oos' : ''} w-75 h-full shrink-0`}>
                             <div className="product-card-header">
                                 <div className="product-icon"><Package size={22} /></div>
                                 <div className="customer-card-actions">
@@ -392,8 +411,7 @@ export default function Products() {
                 )}
             </div>
             {/* Detailed Table */}
-            {/* Detailed Table */}
-            <div className="card">
+            <div className="card mt-4">
                 <h2>All Products — Detailed</h2>
                 <div className="table-responsive">
                     <table>
@@ -414,7 +432,7 @@ export default function Products() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredProducts.map((p) => {
+                            {paginatedProducts.map((p) => {
                                 const calc = calcAll(p);
                                 const stock = getStockStatus(p);
                                 const clientName = getClientName(p);
@@ -423,7 +441,7 @@ export default function Products() {
                                 return (
                                     <tr key={p.$id} className={stock.color === 'red' ? 'row-oos' : ''}>
                                         <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className='w-[300px] overflow-hidden'>
                                                 <div className="table-avatar-product"><Package size={16} /></div>
                                                 <div>
                                                     <span>{p.name}</span>
@@ -504,6 +522,18 @@ export default function Products() {
                     </table>
                 </div>
             </div>
+            <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={filteredProducts.length}
+                startIndex={startIndex}
+                endIndex={endIndex}
+                itemsPerPage={itemsPerPage}
+                onNext={nextPage}
+                onPrev={prevPage}
+                onGoToPage={goToPage}
+                onItemsPerPageChange={setItemsPerPage}
+            />
 
             {/* Modal */}
             {showModal && (

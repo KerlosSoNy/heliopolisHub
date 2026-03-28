@@ -1,5 +1,23 @@
+@import "tailwindcss";
+
+@theme{
+        --breakpoint-4xs:370px;
+        --breakpoint-3xs:390px;
+        --breakpoint-2xs:414px;
+        --breakpoint-xs:428px;
+        --breakpoint-sm: 640px;
+        --breakpoint-md: 768px;
+        --breakpoint-2md:820px;
+        --breakpoint-lg: 1024px;
+        --breakpoint-xl: 1280px;
+        --breakpoint-2xl: 1440px;
+        --breakpoint-2xxl: 1530px;
+        --breakpoint-3xl: 1920px;
+        --breakpoint-4xl: 2260px;
+}
+
 /* ========== RESET & BASE ========== */
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* { margin: 0; padding: 0;  }
 body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: #1a1a2e; }
 
 /* ========== LAYOUT ========== */
@@ -42,12 +60,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: 
 .sidebar nav a:hover { background: rgba(255,255,255,0.1); color: white; }
 .sidebar nav a.active { background: #6c63ff; color: white; }
 
-.main-content {
-  margin-left: 240px;
-  flex: 1;
-  padding: 30px;
-  min-height: 100vh;
-}
+
 
 /* ========== PAGE ========== */
 .page h1 { font-size: 1.6rem; margin-bottom: 20px; }
@@ -694,13 +707,7 @@ tbody tr:hover { background: #fafbfc; }
   color: #aaa; background: white; border-radius: 14px;
 }
 
-/* ========== PRODUCT CARDS ========== */
-.product-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
-}
+
 .product-card {
   background: white;
   border-radius: 14px;
@@ -1980,4 +1987,75 @@ tfoot .totals-row td {
 .filter-select:focus {
   outline: none;
   border-color: #6c63ff;
+}
+
+/* Add to your CSS */
+.pagination-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  color: #666;
+}
+
+.pagination-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  font-size: 13px;
+  cursor: pointer;
+  background: white;
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled):not(.active) {
+  background: #f0f0f0;
+  border-color: #bbb;
+}
+
+.pagination-btn.active {
+  background: #4f46e5;
+  color: white;
+  border-color: #4f46e5;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pagination-dots {
+  padding: 0 4px;
+  color: #999;
 }
