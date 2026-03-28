@@ -14,7 +14,7 @@ import type { Order, Customer, Product, SelectedProduct } from '../types';
 
 export default function Orders() {
     const { data: orders, loading, error, refetch } = useCollection<Order>({
-        fetchFn: useCallback(() => orderService.list(100), []),
+        fetchFn: useCallback(() => orderService.listAll(), []),
     });
 
     const [customers, setCustomers] = useState<Customer[]>([]);
@@ -29,11 +29,11 @@ export default function Orders() {
     const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
 
     const refreshProducts = () => {
-        productService.list(100).then(setAllProducts).catch(console.error);
+        productService.listAll().then(setAllProducts).catch(console.error);
     };
 
     const refreshCustomers = () => {
-        customerService.list(100).then(setCustomers).catch(console.error);
+        customerService.listAll().then(setCustomers).catch(console.error);
     };
 
     useEffect(() => {
@@ -155,7 +155,7 @@ export default function Orders() {
         }));
         setSelectedProducts(restored);
         setEditingId(order.$id);
-        setUseDeposite(parseFloat(order.deposite_used || '0') > 0);
+        setUseDeposite(parseFloat(order.deposite || '0') > 0);
         setShowModal(true);
     };
 
@@ -178,7 +178,7 @@ export default function Orders() {
                 product: productDescription,
                 products: selectedProducts.map((sp) => sp.productId),
                 price_egp: amountAfterDeposite.toFixed(2),
-                deposite_used: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
+                deposite: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
                 is_paid: 'no',
             };
 
@@ -239,11 +239,11 @@ export default function Orders() {
                 }
             }
 
-            if (order?.deposite_used && parseFloat(order.deposite_used) > 0) {
+            if (order?.deposite && parseFloat(order.deposite) > 0) {
                 const customer = customers.find((c) => c.name === order.client);
                 if (customer) {
                     const currentDeposite = parseFloat(customer.deposite || '0');
-                    const restoredAmount = parseFloat(order.deposite_used);
+                    const restoredAmount = parseFloat(order.deposite);
                     await customerService.update(customer.$id, {
                         deposite: (currentDeposite + restoredAmount).toString(),
                     });
@@ -341,7 +341,7 @@ export default function Orders() {
             <div className="order-grid">
                 {filteredOrders.map((o) => {
                     const paid = isPaid(o);
-                    const depUsed = parseFloat(o.deposite_used || '0');
+                    const depUsed = parseFloat(o.deposite || '0');
 
                     return (
                         <div key={o.$id} className={`order-card ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
@@ -420,13 +420,13 @@ export default function Orders() {
                         <tbody>
                             {filteredOrders.map((o) => {
                                 const paid = isPaid(o);
-                                const depUsed = parseFloat(o.deposite_used || '0');
+                                const depUsed = parseFloat(o.deposite || '0');
 
                                 return (
                                     <tr key={o.$id} className={paid ? 'row-paid' : 'row-unpaid'}>
                                         <td>#{o.$id.slice(0, 8)}</td>
                                         <td><strong>{o.client}</strong></td>
-                                        <td><span className="table-items-text">{o.product || '—'}</span></td>
+                                        <td><span className="table-items-text">{o.products?.length || '—'}</span></td>
                                         <td>
                                             {depUsed > 0 ? (
                                                 <span className="text-blue">{depUsed.toFixed(2)}</span>

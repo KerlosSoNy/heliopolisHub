@@ -15,10 +15,10 @@ const emptyForm: CustomerForm = { name: '', phone: '', deposite: '' };
 
 export default function Customers() {
     const { data: customers, loading, error, refetch } = useCollection<Customer>({
-        fetchFn: useCallback(() => customerService.list(), []),
+        fetchFn: useCallback(() => customerService.listAll(), []),
     });
     const { data: orders } = useCollection<Order>({
-        fetchFn: useCallback(() => orderService.list(100), []),
+        fetchFn: useCallback(() => orderService.listAll(), []),
     });
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export default function Customers() {
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <button className="btn btn-primary" onClick={openCreate}>
+                    <button type="button" title='Plus' className="btn btn-primary" onClick={openCreate}>
                         <Plus size={16} /> Add Customer
                     </button>
                 </div>
@@ -203,12 +203,16 @@ export default function Customers() {
                             {/* Deposit Actions */}
                             <div className="deposit-actions">
                                 <button
+                                    type="button"
+                                    title='PlusCircle'
                                     className="btn btn-sm btn-deposit-add"
                                     onClick={() => openAddDeposit(c)}
                                 >
                                     <PlusCircle size={14} /> Add Deposit
                                 </button>
                                 <button
+                                    type="button"
+                                    title='History'
                                     className="btn btn-sm btn-deposit-history"
                                     onClick={() => openHistory(c)}
                                 >
@@ -310,10 +314,10 @@ export default function Customers() {
                                         })()}
                                     </td>
                                     <td className="actions">
-                                        <button className="btn-icon" onClick={() => openAddDeposit(c)} title="Add deposit">
+                                        <button type="button" className="btn-icon" onClick={() => openAddDeposit(c)} title="Add deposit">
                                             <PlusCircle size={16} />
                                         </button>
-                                        <button className="btn-icon" onClick={() => openHistory(c)} title="View history">
+                                        <button type="button" className="btn-icon" onClick={() => openHistory(c)} title="View history">
                                             <History size={16} />
                                         </button>
                                         <button title='Edit' type="button" className="btn-icon" onClick={() => openEdit(c)}>
@@ -339,7 +343,7 @@ export default function Customers() {
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Edit Customer' : 'New Customer'}</h2>
-                            <button className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
+                            <button type="button" title='Close' className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
@@ -358,8 +362,8 @@ export default function Customers() {
                                     onChange={(e) => setForm({ ...form, deposite: e.target.value })} />
                             </div>
                             <div className="form-actions">
-                                <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary">{editingId ? 'Update' : 'Create'}</button>
+                                <button type="button" title='Cancel' className="btn" onClick={() => setShowModal(false)}>Cancel</button>
+                                <button type="submit" title='Btn' className="btn btn-primary">{editingId ? 'Update' : 'Create'}</button>
                             </div>
                         </form>
                     </div>
@@ -372,7 +376,7 @@ export default function Customers() {
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>Add Deposit</h2>
-                            <button className="btn-icon" onClick={() => setShowDepositModal(false)}><X size={20} /></button>
+                            <button type="button" title='Close' className="btn-icon" onClick={() => setShowDepositModal(false)}><X size={20} /></button>
                         </div>
 
                         <div className="deposit-modal-customer">
@@ -432,8 +436,8 @@ export default function Customers() {
                             </div>
 
                             <div className="form-actions">
-                                <button type="button" className="btn" onClick={() => setShowDepositModal(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary">
+                                <button type="button" title='Close' className="btn" onClick={() => setShowDepositModal(false)}>Cancel</button>
+                                <button type="submit" title='PlusCircle' className="btn btn-primary">
                                     <PlusCircle size={14} /> Add Deposit
                                 </button>
                             </div>

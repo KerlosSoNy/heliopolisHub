@@ -5,6 +5,8 @@ import {
   Package,
   ShoppingCart,
   LogOut,
+  Plus,
+  ShieldIcon,
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -13,6 +15,8 @@ import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Login from './pages/Login';
 import './App.css';
+import AdditionalPage from './pages/Additional';
+import Shipments from './pages/Shipments';
 
 function AppLayout() {
   const { user, logout } = useAuth();
@@ -30,6 +34,12 @@ function AppLayout() {
           </NavLink>
           <NavLink to="/products">
             <Package size={18} /> Products
+          </NavLink>
+          <NavLink to="/additional">
+            <Plus size={18} /> Additionals
+          </NavLink>
+          <NavLink to="/shipments">
+            <ShieldIcon size={18} /> Shipments
           </NavLink>
           <NavLink to="/orders">
             <ShoppingCart size={18} /> Orders
@@ -57,7 +67,9 @@ function AppLayout() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/additional" element={<AdditionalPage />} />
           <Route path="/orders" element={<Orders />} />
+          <Route path="/shipments" element={<Shipments />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

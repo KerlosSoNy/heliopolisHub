@@ -2,11 +2,11 @@ import { databases, DATABASE_ID, COLLECTIONS, ID, Query } from '../lib/appwrite'
 import type { Customer, CustomerForm } from '../types';
 
 export const customerService = {
-  async list(limit = 25, offset = 0): Promise<Customer[]> {
+  async listAll(): Promise<Customer[]> {
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.CUSTOMERS,
-      [Query.limit(limit), Query.offset(offset), Query.orderDesc('$createdAt')]
+      [Query.orderDesc('$createdAt')]
     );
     return response.documents as unknown as Customer[];
   },

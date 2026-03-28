@@ -38,9 +38,19 @@ export interface Order {
   price_egp: string;
   total_shipping?: string;
   total_order?: string;
-  deposite_used?: string;
+  deposite?: string;
   is_paid?: string;  
 }
+
+export interface Additional {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  note: string;
+  cost: string;
+}
+
+export type AdditionalForm = Omit<Additional, '$id' | '$createdAt' | '$updatedAt'>;
 
 export type OrderForm = {
   client: string;
@@ -71,3 +81,29 @@ export interface DepositHistory {
 }
 
 export type DepositHistoryForm = Omit<DepositHistory, '$id' | '$createdAt' | '$updatedAt'>;
+
+
+// ========== SHIPMENT ==========
+export interface ShipmentProduct {
+  productId: string;
+  qty: number;
+}
+
+export interface Shipment {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  products: string[];        // ✅ Array of JSON strings
+  extra_cost: string;
+  shipping: string;
+  cost_in_china: string;
+  total_cost: string;
+}
+
+export type ShipmentForm = {
+  products: string[];        // ✅ Array of JSON strings
+  extra_cost: string;
+  shipping: string;
+  cost_in_china: string;
+  total_cost: string;
+};

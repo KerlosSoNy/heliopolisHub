@@ -6,16 +6,16 @@ interface OrderData {
   product: string;
   products: string[];
   price_egp: string;
-  deposite_used?: string;
+  deposite?: string;
   is_paid?: string;
 }
 
 export const orderService = {
-  async list(limit = 25, offset = 0): Promise<Order[]> {
+  async listAll(): Promise<Order[]> {
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.ORDERS,
-      [Query.limit(limit), Query.offset(offset), Query.orderDesc('$createdAt')]
+      [Query.orderDesc('$createdAt')]
     );
     return response.documents as unknown as Order[];
   },
@@ -28,11 +28,11 @@ export const orderService = {
   async create(data: OrderData): Promise<Order> {
     const cleanData: Record<string, unknown> = {
       client: data.client,
-      product: data.product,
+      // product: data.product,
       products: data.products,
       price_egp: data.price_egp,
-      deposite_used: data.deposite_used && parseFloat(data.deposite_used) > 0
-        ? data.deposite_used : '0',
+      deposite: data.deposite && parseFloat(data.deposite) > 0
+        ? data.deposite : '0',
       is_paid: data.is_paid || 'no',
     };
 
@@ -48,9 +48,9 @@ export const orderService = {
     if (data.product) cleanData.product = data.product;
     if (data.products) cleanData.products = data.products;
     if (data.price_egp) cleanData.price_egp = data.price_egp;
-    if (data.deposite_used !== undefined) {
-      cleanData.deposite_used = data.deposite_used && parseFloat(data.deposite_used) > 0
-        ? data.deposite_used : '0';
+    if (data.deposite !== undefined) {
+      cleanData.deposite = data.deposite && parseFloat(data.deposite) > 0
+        ? data.deposite : '0';
     }
     if (data.is_paid !== undefined) cleanData.is_paid = data.is_paid;
 

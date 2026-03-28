@@ -27,11 +27,11 @@ const emptyForm: ProductForm = {
 
 export default function Products() {
     const { data: products, loading, error, refetch } = useCollection<Product>({
-        fetchFn: useCallback(() => productService.list(100), []),
+        fetchFn: useCallback(() => productService.listAll(), []),
     });
 
     const { data: orders } = useCollection<Order>({
-        fetchFn: useCallback(() => orderService.list(100), []),
+        fetchFn: useCallback(() => orderService.listAll(), []),
     });
 
 

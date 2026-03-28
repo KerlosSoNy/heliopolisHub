@@ -15,6 +15,8 @@ export const COLLECTIONS = {
   ORDERS: 'orders',
   PRODUCTS: 'products',
   DEPOSIT_HISTORY: 'deposit_history',
+  ADDITIONAL: 'additional',
+  SHIPMENTS: 'shipments',
 };
 
 export { ID, Query };

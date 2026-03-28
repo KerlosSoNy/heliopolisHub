@@ -29,7 +29,7 @@ export default function Dashboard() {
                     customerService.count(),
                     productService.count(),
                     orderService.count(),
-                    orderService.list(5),
+                    orderService.listAll(),
                 ]);
 
                 const totalRevenue = orderList.reduce(

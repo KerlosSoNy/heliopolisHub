@@ -17,11 +17,11 @@ export const depositHistoryService = {
   },
 
   // Get all history
-  async list(limit = 100): Promise<DepositHistory[]> {
+  async listAll(): Promise<DepositHistory[]> {
     const response = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.DEPOSIT_HISTORY,
-      [Query.orderDesc('$createdAt'), Query.limit(limit)]
+      [Query.orderDesc('$createdAt')]
     );
     return response.documents as unknown as DepositHistory[];
   },
