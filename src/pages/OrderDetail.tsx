@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft, ShoppingCart, User, Package, DollarSign,
-    Tag, TrendingUp, Wallet, CheckCircle,
+    TrendingUp, Wallet, CheckCircle,
     Clock, Phone, Calendar,
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
@@ -25,6 +25,7 @@ export default function OrderDetail() {
             window.print();
         }, 300);
     };
+
     const { data: orders, loading: loadingOrders, error } = useCollection<Order>({
         fetchFn: useCallback(() => orderService.listAll(), []),
     });
@@ -40,16 +41,12 @@ export default function OrderDetail() {
     const loading = loadingOrders || loadingCustomers || loadingProducts;
     const order = orders.find((o) => o.$id === id);
 
-    // ========== HELPERS ==========
-    const getProduct = (productId: string): Product | undefined => {
-        return products.find((p) => p.$id === productId);
-    };
+    const getProduct = (productId: string): Product | undefined =>
+        products.find((p) => p.$id === productId);
 
-    const getCustomer = (clientName: string): Customer | undefined => {
-        return customers.find((c) => c.name === clientName);
-    };
+    const getCustomer = (clientName: string): Customer | undefined =>
+        customers.find((c) => c.name === clientName);
 
-    // Product calculations (same as Products page)
     const calcProductProfit = (product: Product) => {
         const priceEgp = (parseFloat(product.price_chi) || 0) * (parseFloat(product.rate) || 0);
         const totalOrder = parseFloat(product.total_order || '0');
@@ -74,14 +71,6 @@ export default function OrderDetail() {
         };
     };
 
-    // Parse qty from product description string
-    const parseQtyFromDescription = (productName: string, description: string): number => {
-        const regex = new RegExp(`${productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*×(\\d+)`);
-        const match = description.match(regex);
-        return match ? parseInt(match[1]) : 1;
-    };
-
-    // ========== LOADING / ERROR ==========
     if (loading) return <div className="loading">Loading order details...</div>;
     if (error) return <div className="error">Error: {error}</div>;
     if (!order) return (
@@ -98,17 +87,23 @@ export default function OrderDetail() {
     const customer = getCustomer(order.client);
     const paid = order.is_paid === 'yes';
     const depUsed = parseFloat(order.deposite || '0');
+    const customerOriginalDeposite = parseFloat(order.customer_deposite || '0');
     const totalPrice = parseFloat(order.price_egp || '0');
     const orderProducts = (order.products || []).map((pid) => getProduct(pid)).filter(Boolean) as Product[];
 
-    // Calculate order totals
     let orderTotalCost = 0;
     let orderTotalRevenue = 0;
     let orderTotalProfit = 0;
 
+    const orderQuantities = order.quantities || [];
+
     const productRows = orderProducts.map((product) => {
         const calc = calcProductProfit(product);
-        const qty = parseQtyFromDescription(product.name, order.product || '');
+        const productIndex = (order.products || []).indexOf(product.$id);
+        const qty = productIndex >= 0
+            ? (parseInt(orderQuantities[productIndex] || '1') || 1)
+            : 1;
+
         const totalCost = calc.totalCostPerPiece * qty;
         const totalRevenue = calc.soldPrice * qty;
         const totalProfit = calc.profitPerPiece * qty;
@@ -120,7 +115,7 @@ export default function OrderDetail() {
         return { product, calc, qty, totalCost, totalRevenue, totalProfit };
     });
 
-    const orderProfit = totalPrice - orderTotalCost;
+    const orderProfit = orderTotalProfit;
 
     return (
         <div className="page">
@@ -137,7 +132,7 @@ export default function OrderDetail() {
                 </div>
                 <div className="customer-meta flex! flex-row items-center text-black! gap-2">
                     <button
-                        className="flex items-center gap-2 px-4 py-2  text-black rounded-lg transition-colors text-sm font-semibold"
+                        className="flex items-center gap-2 px-4 py-2 text-black rounded-lg transition-colors text-sm font-semibold"
                         onClick={handlePrint}
                     >
                         <Printer size={16} /> Print Invoice
@@ -179,19 +174,21 @@ export default function OrderDetail() {
                         <div className="stat-icon blue"><Wallet size={24} /></div>
                         <div>
                             <p className="stat-label">Deposit Used</p>
-                            <p className="stat-value text-blue">{depUsed.toFixed(2)} EGP</p>
+                            <p className="stat-value text-blue">
+                                {depUsed.toFixed(2)} / {customerOriginalDeposite.toFixed(2)} EGP
+                            </p>
                         </div>
                     </div>
                 )}
                 {orderTotalRevenue > 0 && (
                     <div className="stat-card">
-                        <div className={`stat-icon ${orderProfit >= 0 ? 'green' : 'red'}`}>
+                        <div className={`stat-icon ${orderTotalProfit >= 0 ? 'green' : 'red'}`}>
                             <TrendingUp size={24} />
                         </div>
                         <div>
                             <p className="stat-label">Order Profit</p>
-                            <p className={`stat-value ${orderProfit >= 0 ? 'text-green' : 'text-danger'}`}>
-                                {orderProfit.toFixed(2)} EGP
+                            <p className={`stat-value ${orderTotalProfit >= 0 ? 'text-green' : 'text-danger'}`}>
+                                {orderTotalProfit.toFixed(2)} EGP
                             </p>
                         </div>
                     </div>
@@ -226,6 +223,35 @@ export default function OrderDetail() {
                                 </p>
                             </div>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Deposit Breakdown Card */}
+            {depUsed > 0 && (
+                <div className="card mt-4">
+                    <h2 className='flex flex-row items-center gap-2'><Wallet size={18} /> Deposit Breakdown</h2>
+                    <div className="profit-preview-box">
+                        <div className="profit-preview-row">
+                            <span>Customer Deposit at Order Time:</span>
+                            <span>{customerOriginalDeposite.toFixed(2)} EGP</span>
+                        </div>
+                        <div className="profit-preview-row" style={{ color: '#60a5fa' }}>
+                            <span><Wallet size={12} /> Amount Used in This Order:</span>
+                            <strong>{depUsed.toFixed(2)} EGP</strong>
+                        </div>
+                        <div className="profit-preview-row">
+                            <span>Remaining After This Order:</span>
+                            <span>{(customerOriginalDeposite - depUsed).toFixed(2)} EGP</span>
+                        </div>
+                        {customerOriginalDeposite > 0 && (
+                            <div className="profit-preview-row">
+                                <span>% of Deposit Used:</span>
+                                <span style={{ color: '#60a5fa' }}>
+                                    {((depUsed / customerOriginalDeposite) * 100).toFixed(1)}%
+                                </span>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
@@ -332,17 +358,25 @@ export default function OrderDetail() {
             <div className="card mt-4">
                 <h2 className='flex flex-row items-center gap-2'><DollarSign size={18} /> Payment Summary</h2>
                 <div className="profit-preview-box">
-                    {/* Products Cost */}
                     <div className="profit-preview-row">
                         <span><Package size={12} /> Products Total Cost:</span>
                         <span>{orderTotalCost.toFixed(2)} EGP</span>
                     </div>
 
                     {orderTotalRevenue > 0 && (
-                        <div className="profit-preview-row">
-                            <span><Tag size={12} /> Products Revenue:</span>
-                            <span>{orderTotalRevenue.toFixed(2)} EGP</span>
-                        </div>
+                        <>
+                            <div style={{ height: 1, background: 'rgba(255,255,255,0.1)', margin: '12px 0' }} />
+                            <div className={`profit-preview-row profit-preview-total ${orderTotalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
+                                <span><TrendingUp size={12} /> Order Profit:</span>
+                                <strong>{orderTotalProfit.toFixed(2)} EGP</strong>
+                            </div>
+                            <div className="profit-preview-row">
+                                <span>Profit Margin:</span>
+                                <span className={orderTotalProfit >= 0 ? 'text-green' : 'text-danger'}>
+                                    {orderTotalCost > 0 ? ((orderTotalProfit / orderTotalCost) * 100).toFixed(1) : 0}%
+                                </span>
+                            </div>
+                        </>
                     )}
 
                     <div className="profit-preview-row profit-preview-total">
@@ -351,10 +385,16 @@ export default function OrderDetail() {
                     </div>
 
                     {depUsed > 0 && (
-                        <div className="profit-preview-row" style={{ color: '#60a5fa' }}>
-                            <span><Wallet size={12} /> Deposit Used:</span>
-                            <span>−{depUsed.toFixed(2)} EGP</span>
-                        </div>
+                        <>
+                            <div className="profit-preview-row" style={{ color: '#60a5fa' }}>
+                                <span><Wallet size={12} /> Deposit Used:</span>
+                                <span>−{depUsed.toFixed(2)} EGP</span>
+                            </div>
+                            <div className="profit-preview-row" style={{ color: '#9ca3af', fontSize: '12px' }}>
+                                <span>({depUsed.toFixed(2)} of {customerOriginalDeposite.toFixed(2)} deposit balance)</span>
+                                <span>{((depUsed / customerOriginalDeposite) * 100).toFixed(1)}% used</span>
+                            </div>
+                        </>
                     )}
 
                     <div className={`profit-preview-row profit-preview-total ${paid ? 'profit-positive' : 'profit-negative'}`}>
@@ -379,19 +419,18 @@ export default function OrderDetail() {
                     )}
                 </div>
             </div>
+
             {/* ========== PRINTABLE INVOICE ========== */}
             <div
                 ref={invoiceRef}
-                // hidden print:block
-                className=" bg-white hidden print:block text-black p-8 min-h-screen"
+                className="bg-white hidden print:block text-black p-8 min-h-screen"
             >
                 {/* Invoice Header */}
                 <div className="flex items-start justify-between border-b border-black pb-4! mb-6">
                     <img src={logo} alt="Heliopolis Hub" className="w-45 mx-auto!" />
                     <h1 className="text-3xl font-black tracking-tight -mt-5!">INVOICE</h1>
-                    <div className='flex! flex-row justify-between w-full '>
-                        <div className=' w-fit'>
-                            {/* Replace with your business name/logo */}
+                    <div className='flex! flex-row justify-between w-full'>
+                        <div className='w-fit'>
                             <p className="text-sm text-gray-500 mt-1">Heliopolis Hub</p>
                             <p className="text-sm text-gray-500">kerlosssony@email.com</p>
                             <p className="text-sm text-gray-500">+20 101 908 5973</p>
@@ -407,18 +446,12 @@ export default function OrderDetail() {
                                     day: 'numeric',
                                 })}
                             </div>
-                            {/* <div className={`mt-3 inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${paid
-                            ? 'bg-green-100 text-green-700 border border-green-300'
-                            : 'bg-orange-100 text-orange-700 border border-orange-300'
-                            }`}>
-                            {paid ? '✅ PAID' : '⏳ UNPAID'}
-                        </div> */}
                         </div>
                     </div>
                 </div>
 
                 {/* Bill To */}
-                <div className="mt-2! flex! items-center flex-row  w-full justify-between">
+                <div className="mt-2! flex! items-center flex-row w-full justify-between">
                     <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                         Bill To
                     </div>
@@ -470,44 +503,37 @@ export default function OrderDetail() {
                 </table>
 
                 {/* Totals */}
-                <div className="flex flex-row justify-start ">
+                <div className="flex flex-row justify-start">
                     <div className="full flex! flex-row! justify-between items-center w-full">
                         {/* Subtotal */}
                         <div className="flex justify-between flex-col items-center py-2 text-sm mt-4! w-fit">
-                            <span className="text-gray-500  text-center">Subtotal</span>
+                            <span className="text-gray-500 text-center">Subtotal</span>
                             <span>{(totalPrice + depUsed).toFixed(2)} EGP</span>
                         </div>
 
                         {/* Deposit */}
                         {depUsed > 0 && (
-                            <div className="flex justify-between py-2 flex-col items-center text-sm  w-fit">
+                            <div className="flex justify-between mt-4! text-center! py-2 flex-col items-center text-sm w-fit">
                                 <span>Deposit Applied</span>
                                 <span>−{depUsed.toFixed(2)} EGP</span>
+                                <span className="text-xs text-gray-400">
+                                    ({depUsed.toFixed(2)} of {customerOriginalDeposite.toFixed(2)} balance)
+                                </span>
                             </div>
                         )}
-
-                        {/* Divider */}
 
                         {/* Amount Due */}
                         <div className="flex justify-between flex-col items-center py-2 text-sm mt-4! w-fit">
                             <span className="text-gray-500 text-center">
                                 {paid ? 'Amount Paid' : 'Amount Due'}
                             </span>
-                            <span>{totalPrice.toFixed(2)} EGP</span>
+                            <span className="font-bold text-base">{totalPrice.toFixed(2)} EGP</span>
                         </div>
-
-                        {/* Payment Status */}
-                        {/* <div className={`mt-2 text-center py-2 rounded-lg text-sm font-bold ${paid
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-orange-100 text-orange-700'
-                            }`}>
-                            {paid ? '✅ PAID IN FULL' : '⏳ PAYMENT PENDING'}
-                        </div> */}
                     </div>
                 </div>
 
                 {/* Footer */}
-                <div className="mt-16 pt-6 ">
+                <div className="mt-16! pt-6">
                     <div className="text-center">
                         <p className="text-sm text-gray-500">Thank you!</p>
                         <p className="text-xs text-gray-400 mt-1">

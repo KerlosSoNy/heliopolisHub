@@ -28,6 +28,7 @@ export default function Orders() {
     const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
     const [submitting, setSubmitting] = useState(false);
     const [useDeposite, setUseDeposite] = useState(true);
+    const [depositeAmount, setDepositeAmount] = useState<number>(0);
     const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
     const navigate = useNavigate();
     const refreshProducts = () => {
@@ -83,10 +84,26 @@ export default function Orders() {
         }, 0);
     }, [selectedProducts, allProducts]);
 
-    const depositeToUse = useMemo(() => {
+    const maxDeposite = useMemo(() => {
         if (!useDeposite || customerDeposite <= 0) return 0;
         return Math.min(customerDeposite, orderTotal);
     }, [useDeposite, customerDeposite, orderTotal]);
+
+    const depositeToUse = useMemo(() => {
+        if (!useDeposite) return 0;
+        return Math.min(depositeAmount, maxDeposite);
+    }, [useDeposite, depositeAmount, maxDeposite]);
+
+    const handleDepositeAmountChange = (value: string) => {
+        const num = parseFloat(value);
+        if (isNaN(num) || num < 0) {
+            setDepositeAmount(0);
+            return;
+        }
+        // Only clamp to customer's total deposit, NOT maxDeposite
+        // The depositeToUse memo will handle clamping to order total
+        setDepositeAmount(Math.min(num, customerDeposite));
+    };
 
     const amountAfterDeposite = useMemo(() =>
         Math.max(0, orderTotal - depositeToUse), [orderTotal, depositeToUse]);
@@ -99,6 +116,10 @@ export default function Orders() {
     const totalUnpaid = orders
         .filter((o) => o.is_paid !== 'yes')
         .reduce((sum, o) => sum + parseFloat(o.price_egp || '0'), 0);
+
+    // ADD THIS: Total deposits used across all orders
+    const totalDepositsUsed = orders
+        .reduce((sum, o) => sum + parseFloat(o.deposite || '0'), 0);
 
     const totalRevenue = orders.reduce(
         (sum, o) => sum + (parseFloat(o.price_egp) || 0), 0);
@@ -145,6 +166,7 @@ export default function Orders() {
     const openCreate = () => {
         setClient('');
         setSelectedProducts([]);
+        setDepositeAmount(0);
         setEditingId(null);
         setUseDeposite(true);
         setShowModal(true);
@@ -152,15 +174,25 @@ export default function Orders() {
 
     const openEdit = (order: Order) => {
         setClient(order.client);
-        const restored: SelectedProduct[] = (order.products || []).map((pid) => ({
-            productId: pid, qty: 1,
+        const quantities = order.quantities || [];
+        const restored: SelectedProduct[] = (order.products || []).map((pid, index) => ({
+            productId: pid,
+            qty: parseInt(quantities[index] || '1') || 1,
         }));
         setSelectedProducts(restored);
         setEditingId(order.$id);
-        setUseDeposite(parseFloat(order.deposite || '0') > 0);
+        const savedDeposite = parseFloat(order.deposite || '0');
+        setUseDeposite(savedDeposite > 0);
+        setDepositeAmount(savedDeposite); // ← ADD THIS
         setShowModal(true);
     };
 
+    useEffect(() => {
+        // Don't reset deposit when opening edit modal
+        if (editingId) return;
+        setDepositeAmount(0);
+        setUseDeposite(true);
+    }, [client, editingId]);
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (submitting) return;
@@ -179,8 +211,10 @@ export default function Orders() {
                 client,
                 product: productDescription,
                 products: selectedProducts.map((sp) => sp.productId),
+                quantities: selectedProducts.map((sp) => sp.qty.toString()),
                 price_egp: amountAfterDeposite.toFixed(2),
                 deposite: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
+                customer_deposite: customerDeposite > 0 ? customerDeposite.toFixed(2) : '0',
                 is_paid: 'no',
             };
 
@@ -193,20 +227,26 @@ export default function Orders() {
                 const newOrder = await orderService.create(orderData);
                 orderId = newOrder.$id;
 
+                // Decrease product counts
                 for (const sp of selectedProducts) {
                     await productService.decreaseCount(sp.productId, sp.qty);
                 }
 
+                // ===== DEPOSIT: update balance + log history =====
                 if (depositeToUse > 0 && selectedCustomer) {
                     const remainingDeposite = Math.max(0, customerDeposite - depositeToUse);
+
+                    // 1. Update customer's deposit balance
                     await customerService.update(selectedCustomer.$id, {
                         deposite: remainingDeposite > 0 ? remainingDeposite.toString() : '0',
                     });
+
+                    // 2. Log in deposit history WITH order ID
                     await depositHistoryService.logUse(
                         selectedCustomer.$id,
                         selectedCustomer.name,
                         depositeToUse.toFixed(2),
-                        `Used in order: ${productDescription}`
+                        `Used ${depositeToUse.toFixed(2)} EGP in Order #${orderId.slice(0, 8)} — ${productDescription}`
                     );
                 }
             }
@@ -229,28 +269,39 @@ export default function Orders() {
             setSubmitting(false);
         }
     };
-
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this order? Product counts will be restored.')) return;
         try {
             const order = orders.find((o) => o.$id === id);
 
+            // Restore product counts
             if (order?.products && order.products.length > 0) {
-                for (const pid of order.products) {
-                    await productService.increaseCount(pid, 1);
+                const quantities = order.quantities || [];
+                for (let i = 0; i < order.products.length; i++) {
+                    const pid = order.products[i];
+                    const qty = parseInt(quantities[i] || '1') || 1;
+                    await productService.increaseCount(pid, qty);
                 }
             }
 
+            // Restore deposit + log history
             if (order?.deposite && parseFloat(order.deposite) > 0) {
                 const customer = customers.find((c) => c.name === order.client);
                 if (customer) {
                     const currentDeposite = parseFloat(customer.deposite || '0');
                     const restoredAmount = parseFloat(order.deposite);
+
+                    // 1. Restore customer's deposit balance
                     await customerService.update(customer.$id, {
                         deposite: (currentDeposite + restoredAmount).toString(),
                     });
+
+                    // 2. Log restoration with order ID
                     await depositHistoryService.logRestore(
-                        customer.$id, customer.name, restoredAmount.toFixed(2)
+                        customer.$id,
+                        customer.name,
+                        restoredAmount.toFixed(2),
+                        `Restored ${restoredAmount.toFixed(2)} EGP from deleted Order #${id.slice(0, 8)}`
                     );
                 }
             }
@@ -263,7 +314,6 @@ export default function Orders() {
             console.error(err);
         }
     };
-
     // ========== FILTER ==========
     const filteredOrders = orders
         .filter((o) =>
@@ -328,6 +378,13 @@ export default function Orders() {
                     <div>
                         <p className="stat-label">Total Unpaid</p>
                         <p className="stat-value text-danger">{totalUnpaid.toFixed(2)}</p>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon blue"><Wallet size={24} /></div>
+                    <div>
+                        <p className="stat-label">Total Deposits Used</p>
+                        <p className="stat-value text-blue">{totalDepositsUsed.toFixed(2)}</p>
                     </div>
                 </div>
                 <div className="stat-card">
@@ -511,7 +568,7 @@ export default function Orders() {
                             </div>
 
                             {selectedCustomer && customerDeposite > 0 && (
-                                <div className="deposite-banner flex! flex-row items-center gap-2">
+                                <div className="deposite-banner">
                                     <div className="deposite-banner-info flex! flex-row items-center gap-2">
                                         <Wallet size={18} />
                                         <div>
@@ -520,19 +577,111 @@ export default function Orders() {
                                         </div>
                                     </div>
                                     <label className="deposite-toggle">
-                                        <input type="checkbox" checked={useDeposite} onChange={(e) => setUseDeposite(e.target.checked)} />
+                                        <input
+                                            type="checkbox"
+                                            checked={useDeposite}
+                                            onChange={(e) => {
+                                                setUseDeposite(e.target.checked);
+                                                if (!e.target.checked) setDepositeAmount(0);
+                                            }}
+                                        />
                                         <span>Use deposit</span>
                                     </label>
+
+                                    {useDeposite && (
+                                        <div className="deposite-input-group" style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            marginTop: '12px',
+                                            width: '100%',
+                                        }}>
+                                            <label style={{
+                                                fontSize: '14px',
+                                                fontWeight: 600,
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                Amount to use:
+                                            </label>
+                                            <div style={{
+                                                position: 'relative',
+                                                flex: 1,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                            }}>
+                                                <input
+                                                    type="number"
+                                                    value={depositeAmount || ''}
+                                                    placeholder="0.00"
+                                                    min={0}
+                                                    max={maxDeposite}
+                                                    step="0.01"
+                                                    onChange={(e) => handleDepositeAmountChange(e.target.value)}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '8px 70px 8px 12px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid #d1d5db',
+                                                        fontSize: '14px',
+                                                    }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDepositeAmount(maxDeposite)}
+                                                    style={{
+                                                        position: 'absolute',
+                                                        right: '4px',
+                                                        padding: '4px 10px',
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        borderRadius: '6px',
+                                                        border: 'none',
+                                                        background: '#3b82f6',
+                                                        color: 'white',
+                                                        cursor: 'pointer',
+                                                    }}
+                                                >
+                                                    Use Max
+                                                </button>
+                                            </div>
+                                            <span style={{
+                                                fontSize: '12px',
+                                                color: '#6b7280',
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                Max: {maxDeposite.toFixed(2)} EGP
+                                            </span>
+                                        </div>
+                                    )}
+
+                                    {useDeposite && depositeAmount > 0 && (
+                                        <div style={{
+                                            marginTop: '8px',
+                                            padding: '8px 12px',
+                                            borderRadius: '8px',
+                                            background: 'rgba(59, 130, 246, 0.1)',
+                                            fontSize: '13px',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                        }}>
+                                            <span>Deposit to deduct:</span>
+                                            <strong style={{ color: '#3b82f6' }}>
+                                                {depositeToUse.toFixed(2)} EGP
+                                            </strong>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
                             {selectedCustomer && customerDeposite === 0 && (
                                 <div className="deposite-banner no-deposite flex! flex-row items-center gap-2 mb-4!">
-                                    <Wallet size={16} /><span><strong>{selectedCustomer.name}</strong> has no deposit</span>
+                                    <Wallet size={16} />
+                                    <span><strong>{selectedCustomer.name}</strong> has no deposit</span>
                                 </div>
                             )}
 
-                            <div className="form-group">
+                            <div className="form-group mt-4!">
                                 <label className='flex! flex-row items-center gap-2'>
                                     <Package size={14} /> Select Products *
                                     <span className="label-badge">{selectedProducts.length} selected</span>
@@ -566,9 +715,9 @@ export default function Orders() {
                                                     </span>
                                                 </div>
                                                 {selected && !outOfStock && (
-                                                    <div className="qty-picker">
+                                                    <div className="qty-picker mx-auto!">
                                                         <button title="Decrease quantity" type="button" className="qty-btn" onClick={() => updateQty(p.$id, qty - 1)} disabled={qty <= 1}><Minus size={14} /></button>
-                                                        <input title="Quantity" type="number" className="qty-input" value={qty} min={1} max={available} onChange={(e) => updateQty(p.$id, parseInt(e.target.value) || 1)} />
+                                                        <input title="Quantity" type="number" className="qty-input text-black!" value={qty} min={1} max={available} onChange={(e) => updateQty(p.$id, parseInt(e.target.value) || 1)} />
                                                         <button title="Increase quantity" type="button" className="qty-btn" onClick={() => updateQty(p.$id, qty + 1)} disabled={qty >= available}><PlusIcon size={14} /></button>
                                                         <span className="qty-max">/ {available}</span>
                                                     </div>
@@ -604,7 +753,8 @@ export default function Orders() {
                                         <div className="breakdown-total-row"><span>Subtotal:</span><span>{orderTotal.toFixed(2)} EGP</span></div>
                                         {depositeToUse > 0 && (
                                             <div className="breakdown-total-row deposite-deduction">
-                                                <span><Wallet size={14} /> Deposit:</span><span>−{depositeToUse.toFixed(2)} EGP</span>
+                                                <span><Wallet size={14} /> Deposit ({depositeToUse.toFixed(2)} of {customerDeposite.toFixed(2)}):</span>
+                                                <span>−{depositeToUse.toFixed(2)} EGP</span>
                                             </div>
                                         )}
                                         <div className="breakdown-total-row sold-total final-total">

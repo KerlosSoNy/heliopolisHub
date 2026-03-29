@@ -35,10 +35,12 @@ export interface Order {
   client: string;
   product: string;
   products?: string[];
+  quantities: string[];
   price_egp: string;
   total_shipping?: string;
   total_order?: string;
   deposite?: string;
+  customer_deposite: string;
   is_paid?: string;  
 }
 

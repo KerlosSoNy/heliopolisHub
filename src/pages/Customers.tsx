@@ -30,7 +30,11 @@ export default function Customers() {
     const [depositCustomer, setDepositCustomer] = useState<Customer | null>(null);
     const [depositAmount, setDepositAmount] = useState('');
     const [depositNote, setDepositNote] = useState('');
-
+    const [showUseDepositModal, setShowUseDepositModal] = useState(false);
+    const [useDepositCustomer, setUseDepositCustomer] = useState<Customer | null>(null);
+    const [useDepositAmount, setUseDepositAmount] = useState('');
+    const [useDepositNote, setUseDepositNote] = useState('');
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     // History modal
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [historyCustomer, setHistoryCustomer] = useState<Customer | null>(null);
@@ -72,6 +76,55 @@ export default function Customers() {
                 }
             }
             setShowModal(false);
+            refetch();
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const openUseDeposit = (customer: Customer) => {
+        setUseDepositCustomer(customer);
+        setUseDepositAmount('');
+        setUseDepositNote('');
+        setSelectedOrderId(null);
+        setShowUseDepositModal(true);
+    };
+
+    const handleUseDeposit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!useDepositCustomer || !useDepositAmount) return;
+
+        try {
+            const currentDeposit = parseFloat(useDepositCustomer.deposite || '0');
+            const useAmount = parseFloat(useDepositAmount);
+
+            // Prevent using more than available
+            if (useAmount > currentDeposit) {
+                alert(`Insufficient deposit! Available: ${currentDeposit.toFixed(2)} EGP`);
+                return;
+            }
+
+            const newDeposit = currentDeposit - useAmount;
+
+            // 1. Update customer deposit balance
+            await customerService.update(useDepositCustomer.$id, {
+                deposite: newDeposit.toFixed(2),
+            });
+
+            // 2. Log the usage in history
+            await depositHistoryService.logUse(
+                useDepositCustomer.$id,
+                useDepositCustomer.name,
+                useAmount.toFixed(2),
+                useDepositNote || 'Deposit used for payment'
+            );
+
+            // 3. If an order was selected, mark it as paid
+            if (selectedOrderId) {
+                await orderService.update(selectedOrderId, { is_paid: 'yes' });
+            }
+
+            setShowUseDepositModal(false);
             refetch();
         } catch (err) {
             console.error(err);
@@ -212,6 +265,15 @@ export default function Customers() {
                                 </button>
                                 <button
                                     type="button"
+                                    title="Use Deposit"
+                                    className="btn btn-sm btn-deposit-use"
+                                    onClick={() => openUseDeposit(c)}
+                                    disabled={parseFloat(c.deposite || '0') <= 0}
+                                >
+                                    <MinusCircle size={14} /> Use
+                                </button>
+                                <button
+                                    type="button"
                                     title='History'
                                     className="btn btn-sm btn-deposit-history"
                                     onClick={() => openHistory(c)}
@@ -316,6 +378,9 @@ export default function Customers() {
                                     <td className="actions">
                                         <button type="button" className="btn-icon" onClick={() => openAddDeposit(c)} title="Add deposit">
                                             <PlusCircle size={16} />
+                                        </button>
+                                        <button type="button" className="btn-icon danger" onClick={() => openUseDeposit(c)} title="Use deposit">
+                                            <MinusCircle size={16} />
                                         </button>
                                         <button type="button" className="btn-icon" onClick={() => openHistory(c)} title="View history">
                                             <History size={16} />
@@ -530,6 +595,124 @@ export default function Customers() {
                                 </div>
                             </div>
                         )}
+                    </div>
+                </div>
+            )}
+            {showUseDepositModal && useDepositCustomer && (
+                <div className="modal-overlay" onClick={() => setShowUseDepositModal(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2><MinusCircle size={18} /> Use Deposit</h2>
+                            <button type="button" title="Close" className="btn-icon"
+                                onClick={() => setShowUseDepositModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="deposit-modal-customer">
+                            <div className="customer-avatar">
+                                {useDepositCustomer.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <strong>{useDepositCustomer.name}</strong>
+                                <p className="deposit-current">
+                                    Available Deposit: <span className="text-green">
+                                        {parseFloat(useDepositCustomer.deposite || '0').toFixed(2)} EGP
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Show unpaid orders for this customer
+                        {(() => {
+                            const unpaidOrders = orders.filter(
+                                (o) => o.client === useDepositCustomer.name && o.is_paid !== 'yes'
+                            );
+                            if (unpaidOrders.length === 0) return null;
+
+                            return (
+                                <div className="form-group">
+                                    <label>Apply to Order (optional)</label>
+                                    <select
+                                        title='Select'
+                                        value={selectedOrderId || ''}
+                                        onChange={(e) => {
+                                            setSelectedOrderId(e.target.value || null);
+                                            if (e.target.value) {
+                                                const order = unpaidOrders.find(o => o.$id === e.target.value);
+                                                if (order) {
+                                                    setUseDepositAmount(order.price_egp || '');
+                                                    setUseDepositNote(`Payment for order #${order.$id.slice(-6)}`);
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        <option value="">-- No specific order --</option>
+                                        {unpaidOrders.map((o) => (
+                                            <option key={o.$id} value={o.$id}>
+                                                Order #{o.$id.slice(-6)} — {parseFloat(o.price_egp || '0').toFixed(2)} EGP
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            );
+                        })()} */}
+
+                        <form onSubmit={handleUseDeposit}>
+                            <div className="form-group">
+                                <label><Wallet size={14} /> Amount to Deduct (EGP) *</label>
+                                <input
+                                    required
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    max={useDepositCustomer.deposite || '0'}
+                                    placeholder="Enter amount to use"
+                                    value={useDepositAmount}
+                                    onChange={(e) => setUseDepositAmount(e.target.value)}
+                                />
+                            </div>
+
+                            {useDepositAmount && (
+                                <div className="deposit-preview">
+                                    <div className="deposit-preview-row">
+                                        <span>Current Balance:</span>
+                                        <span>{parseFloat(useDepositCustomer.deposite || '0').toFixed(2)} EGP</span>
+                                    </div>
+                                    <div className="deposit-preview-row text-danger">
+                                        <span>Deducting:</span>
+                                        <span>-{parseFloat(useDepositAmount || '0').toFixed(2)} EGP</span>
+                                    </div>
+                                    <div className="deposit-preview-row deposit-preview-total">
+                                        <span>Remaining:</span>
+                                        <strong className={
+                                            (parseFloat(useDepositCustomer.deposite || '0') - parseFloat(useDepositAmount || '0')) < 0
+                                                ? 'text-danger'
+                                                : 'text-green'
+                                        }>
+                                            {(parseFloat(useDepositCustomer.deposite || '0') - parseFloat(useDepositAmount || '0')).toFixed(2)} EGP
+                                        </strong>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="form-group">
+                                <label>Note (optional)</label>
+                                <input
+                                    placeholder="e.g., Payment for order, Refund..."
+                                    value={useDepositNote}
+                                    onChange={(e) => setUseDepositNote(e.target.value)}
+                                />
+                            </div>
+
+                            <div className="form-actions">
+                                <button type="button" className="btn"
+                                    onClick={() => setShowUseDepositModal(false)}>Cancel</button>
+                                <button type="submit" className="btn btn-danger">
+                                    <MinusCircle size={14} /> Deduct Deposit
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
