@@ -73,15 +73,15 @@ export default function Orders() {
 
     const isPaid = (order: Order): boolean => order.is_paid === 'yes';
 
-    // ← NEW: Helper to calculate discount amount for any order
-    const getOrderDiscountAmount = (order: Order, subtotal: number): number => {
-        const discVal = parseFloat(order.discount || '0');
-        if (discVal <= 0) return 0;
-        if (order.discount_type === 'percentage') {
-            return Math.min((subtotal * discVal) / 100, subtotal);
-        }
-        return Math.min(discVal, subtotal);
-    };
+    // // ← NEW: Helper to calculate discount amount for any order
+    // const getOrderDiscountAmount = (order: Order, subtotal: number): number => {
+    //     const discVal = parseFloat(order.discount || '0');
+    //     if (discVal <= 0) return 0;
+    //     if (order.discount_type === 'percentage') {
+    //         return Math.min((subtotal * discVal) / 100, subtotal);
+    //     }
+    //     return Math.min(discVal, subtotal);
+    // };
 
     const selectedCustomer = useMemo(() =>
         customers.find((c) => c.name === client), [client, customers]);
