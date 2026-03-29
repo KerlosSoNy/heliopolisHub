@@ -42,6 +42,8 @@ export interface Order {
   deposite?: string;
   customer_deposite: string;
   is_paid?: string;  
+  discount?: string;      
+  discount_type?: string
 }
 
 export interface Additional {

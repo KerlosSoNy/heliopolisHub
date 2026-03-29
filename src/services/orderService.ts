@@ -10,6 +10,8 @@ interface OrderData {
     deposite?: string;
     customer_deposite?: string;
     is_paid?: string;
+    discount?: string;         // ← ADD
+    discount_type?: string;    // ← ADD
 }
 
 export const orderService = {
@@ -38,6 +40,9 @@ export const orderService = {
             customer_deposite: data.customer_deposite && parseFloat(data.customer_deposite) > 0
                 ? data.customer_deposite : '0',
             is_paid: data.is_paid || 'no',
+            discount: data.discount && parseFloat(data.discount) > 0
+                ? data.discount : '0',                          // ← ADD
+            discount_type: data.discount_type || 'fixed',       // ← ADD
         };
 
         const response = await databases.createDocument(
@@ -46,30 +51,38 @@ export const orderService = {
         return response as unknown as Order;
     },
 
-async update(id: string, data: Partial<OrderData>): Promise<Order> {
-    const cleanData: Record<string, unknown> = {};
-    
-    // Use !== undefined instead of truthy checks
-    if (data.client !== undefined) cleanData.client = data.client;
-    if (data.products !== undefined) cleanData.products = data.products;
-    if (data.quantities !== undefined) cleanData.quantities = data.quantities;
-    if (data.price_egp !== undefined) cleanData.price_egp = data.price_egp;
-    
-    if (data.deposite !== undefined) {
-        cleanData.deposite = data.deposite && parseFloat(data.deposite) > 0
-            ? data.deposite : '0';
-    }
-    if (data.customer_deposite !== undefined) {
-        cleanData.customer_deposite = data.customer_deposite && parseFloat(data.customer_deposite) > 0
-            ? data.customer_deposite : '0';
-    }
-    if (data.is_paid !== undefined) cleanData.is_paid = data.is_paid;
+    async update(id: string, data: Partial<OrderData>): Promise<Order> {
+        const cleanData: Record<string, unknown> = {};
 
-    const response = await databases.updateDocument(
-        DATABASE_ID, COLLECTIONS.ORDERS, id, cleanData
-    );
-    return response as unknown as Order;
-},
+        if (data.client !== undefined) cleanData.client = data.client;
+        if (data.products !== undefined) cleanData.products = data.products;
+        if (data.quantities !== undefined) cleanData.quantities = data.quantities;
+        if (data.price_egp !== undefined) cleanData.price_egp = data.price_egp;
+
+        if (data.deposite !== undefined) {
+            cleanData.deposite = data.deposite && parseFloat(data.deposite) > 0
+                ? data.deposite : '0';
+        }
+        if (data.customer_deposite !== undefined) {
+            cleanData.customer_deposite = data.customer_deposite && parseFloat(data.customer_deposite) > 0
+                ? data.customer_deposite : '0';
+        }
+        if (data.is_paid !== undefined) cleanData.is_paid = data.is_paid;
+
+        // ← ADD THESE
+        if (data.discount !== undefined) {
+            cleanData.discount = data.discount && parseFloat(data.discount) > 0
+                ? data.discount : '0';
+        }
+        if (data.discount_type !== undefined) {
+            cleanData.discount_type = data.discount_type || 'fixed';
+        }
+
+        const response = await databases.updateDocument(
+            DATABASE_ID, COLLECTIONS.ORDERS, id, cleanData
+        );
+        return response as unknown as Order;
+    },
 
     async remove(id: string): Promise<void> {
         await databases.deleteDocument(DATABASE_ID, COLLECTIONS.ORDERS, id);

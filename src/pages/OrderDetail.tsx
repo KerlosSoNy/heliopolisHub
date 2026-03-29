@@ -3,6 +3,7 @@ import {
     ArrowLeft, ShoppingCart, User, Package, DollarSign,
     TrendingUp, Wallet, CheckCircle,
     Clock, Phone, Calendar,
+    Tag,
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { customerService } from '../services/customerService';
@@ -193,8 +194,20 @@ export default function OrderDetail() {
                         </div>
                     </div>
                 )}
+                {parseFloat(order.discount || '0') > 0 && (
+                    <div className="stat-card">
+                        <div className="stat-icon" style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }}>
+                            <Tag size={24} />
+                        </div>
+                        <div>
+                            <p className="stat-label">Discount Applied</p>
+                            <p className="stat-value" style={{ color: '#f97316' }}>
+                                −{parseFloat(order.discount || '0').toFixed(2)} EGP
+                            </p>
+                        </div>
+                    </div>
+                )}
             </div>
-
             {/* Client Info Card */}
             {customer && (
                 <div className="card mt-4">
@@ -381,9 +394,17 @@ export default function OrderDetail() {
 
                     <div className="profit-preview-row profit-preview-total">
                         <span><strong>Order Amount:</strong></span>
-                        <strong>{(totalPrice + depUsed).toFixed(2)} EGP</strong>
+                        <strong>{(totalPrice + depUsed + Math.abs(+(order?.discount || '0') || 0)).toFixed(2)} EGP</strong>
                     </div>
 
+                    {order?.discount && (
+                        <>
+                            <div className="profit-preview-row" style={{ color: 'red' }}>
+                                <span><Wallet size={12} /> Discount Used:</span>
+                                <span>−{order?.discount || '0'}</span>
+                            </div>
+                        </>
+                    )}
                     {depUsed > 0 && (
                         <>
                             <div className="profit-preview-row" style={{ color: '#60a5fa' }}>
@@ -417,6 +438,7 @@ export default function OrderDetail() {
                             </div>
                         </>
                     )}
+
                 </div>
             </div>
 
@@ -508,9 +530,14 @@ export default function OrderDetail() {
                         {/* Subtotal */}
                         <div className="flex justify-between flex-col items-center py-2 text-sm mt-4! w-fit">
                             <span className="text-gray-500 text-center">Subtotal</span>
-                            <span>{(totalPrice + depUsed).toFixed(2)} EGP</span>
+                            <span>{(totalPrice + depUsed + Math.abs(+(order?.discount || '0') || 0)).toFixed(2)} EGP</span>
                         </div>
-
+                        {parseFloat(order.discount || '0') > 0 && (
+                            <div className="flex justify-between mt-4! text-center! py-2 flex-col items-center text-sm w-fit">
+                                <span style={{ color: '#f97316' }}>Discount</span>
+                                <span style={{ color: '#f97316' }}>−{parseFloat(order.discount || '0').toFixed(2)} EGP</span>
+                            </div>
+                        )}
                         {/* Deposit */}
                         {depUsed > 0 && (
                             <div className="flex justify-between mt-4! text-center! py-2 flex-col items-center text-sm w-fit">

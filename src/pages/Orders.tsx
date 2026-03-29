@@ -4,7 +4,7 @@ import {
     Package, DollarSign, Check, Minus,
     Plus as PlusIcon, Wallet, CheckCircle,
     CircleDollarSign, Clock,
-    Eye,
+    Eye, Percent, Tag,                          // ← ADD Percent, Tag
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { customerService } from '../services/customerService';
@@ -31,6 +31,11 @@ export default function Orders() {
     const [depositeAmount, setDepositeAmount] = useState<number>(0);
     const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
     const navigate = useNavigate();
+
+    // ← NEW: Discount state
+    const [discountValue, setDiscountValue] = useState<number>(0);
+    const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+
     const refreshProducts = () => {
         productService.listAll().then(setAllProducts).catch(console.error);
     };
@@ -68,7 +73,16 @@ export default function Orders() {
 
     const isPaid = (order: Order): boolean => order.is_paid === 'yes';
 
-    // Customer info
+    // ← NEW: Helper to calculate discount amount for any order
+    const getOrderDiscountAmount = (order: Order, subtotal: number): number => {
+        const discVal = parseFloat(order.discount || '0');
+        if (discVal <= 0) return 0;
+        if (order.discount_type === 'percentage') {
+            return Math.min((subtotal * discVal) / 100, subtotal);
+        }
+        return Math.min(discVal, subtotal);
+    };
+
     const selectedCustomer = useMemo(() =>
         customers.find((c) => c.name === client), [client, customers]);
 
@@ -84,10 +98,24 @@ export default function Orders() {
         }, 0);
     }, [selectedProducts, allProducts]);
 
+    // ← NEW: Calculate discount amount
+    const discountAmount = useMemo(() => {
+        if (discountValue <= 0) return 0;
+        if (discountType === 'percentage') {
+            return Math.min((orderTotal * discountValue) / 100, orderTotal);
+        }
+        return Math.min(discountValue, orderTotal);
+    }, [discountValue, discountType, orderTotal]);
+
+    // ← UPDATED: Subtotal after discount
+    const totalAfterDiscount = useMemo(() =>
+        Math.max(0, orderTotal - discountAmount), [orderTotal, discountAmount]);
+
+    // ← UPDATED: Max deposit now based on discounted total
     const maxDeposite = useMemo(() => {
         if (!useDeposite || customerDeposite <= 0) return 0;
-        return Math.min(customerDeposite, orderTotal);
-    }, [useDeposite, customerDeposite, orderTotal]);
+        return Math.min(customerDeposite, totalAfterDiscount);  // ← CHANGED
+    }, [useDeposite, customerDeposite, totalAfterDiscount]);
 
     const depositeToUse = useMemo(() => {
         if (!useDeposite) return 0;
@@ -100,13 +128,12 @@ export default function Orders() {
             setDepositeAmount(0);
             return;
         }
-        // Only clamp to customer's total deposit, NOT maxDeposite
-        // The depositeToUse memo will handle clamping to order total
         setDepositeAmount(Math.min(num, customerDeposite));
     };
 
+    // ← UPDATED: Final amount = subtotal - discount - deposit
     const amountAfterDeposite = useMemo(() =>
-        Math.max(0, orderTotal - depositeToUse), [orderTotal, depositeToUse]);
+        Math.max(0, totalAfterDiscount - depositeToUse), [totalAfterDiscount, depositeToUse]);
 
     // Summary stats
     const totalPaid = orders
@@ -117,9 +144,24 @@ export default function Orders() {
         .filter((o) => o.is_paid !== 'yes')
         .reduce((sum, o) => sum + parseFloat(o.price_egp || '0'), 0);
 
-    // ADD THIS: Total deposits used across all orders
     const totalDepositsUsed = orders
         .reduce((sum, o) => sum + parseFloat(o.deposite || '0'), 0);
+
+    // ← NEW: Total discounts given
+    const totalDiscounts = orders.reduce((sum, o) => {
+        const disc = parseFloat(o.discount || '0');
+        if (disc <= 0) return sum;
+        // Recalculate the actual discount amount for percentage-based discounts
+        const orderSubtotal = parseFloat(o.price_egp || '0') + parseFloat(o.deposite || '0');
+        if (o.discount_type === 'percentage') {
+            // For percentage, we need the original subtotal before discount
+            // price_egp = subtotal - discount - deposit, so subtotal = price_egp + deposit + discountAmount
+            // This is tricky, so we store the actual discount amount instead
+            // For now, approximate or store actual amount
+            return sum + disc; // We'll store actual amount — see below
+        }
+        return sum + Math.min(disc, orderSubtotal + disc);
+    }, 0);
 
     const totalRevenue = orders.reduce(
         (sum, o) => sum + (parseFloat(o.price_egp) || 0), 0);
@@ -169,6 +211,8 @@ export default function Orders() {
         setDepositeAmount(0);
         setEditingId(null);
         setUseDeposite(true);
+        setDiscountValue(0);          // ← NEW
+        setDiscountType('fixed');      // ← NEW
         setShowModal(true);
     };
 
@@ -183,16 +227,23 @@ export default function Orders() {
         setEditingId(order.$id);
         const savedDeposite = parseFloat(order.deposite || '0');
         setUseDeposite(savedDeposite > 0);
-        setDepositeAmount(savedDeposite); // ← ADD THIS
+        setDepositeAmount(savedDeposite);
+
+        // ← NEW: Restore discount
+        setDiscountValue(parseFloat(order.discount || '0'));
+        setDiscountType((order.discount_type as 'fixed' | 'percentage') || 'fixed');
+
         setShowModal(true);
     };
 
     useEffect(() => {
-        // Don't reset deposit when opening edit modal
         if (editingId) return;
         setDepositeAmount(0);
         setUseDeposite(true);
+        setDiscountValue(0);          // ← NEW
+        setDiscountType('fixed');      // ← NEW
     }, [client, editingId]);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (submitting) return;
@@ -216,6 +267,8 @@ export default function Orders() {
                 deposite: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
                 customer_deposite: customerDeposite > 0 ? customerDeposite.toFixed(2) : '0',
                 is_paid: 'no',
+                discount: discountAmount > 0 ? discountAmount.toFixed(2) : '0',   // ← NEW: store actual amount
+                discount_type: discountType,                                         // ← NEW
             };
 
             let orderId: string;
@@ -227,21 +280,15 @@ export default function Orders() {
                 const newOrder = await orderService.create(orderData);
                 orderId = newOrder.$id;
 
-                // Decrease product counts
                 for (const sp of selectedProducts) {
                     await productService.decreaseCount(sp.productId, sp.qty);
                 }
 
-                // ===== DEPOSIT: update balance + log history =====
                 if (depositeToUse > 0 && selectedCustomer) {
                     const remainingDeposite = Math.max(0, customerDeposite - depositeToUse);
-
-                    // 1. Update customer's deposit balance
                     await customerService.update(selectedCustomer.$id, {
                         deposite: remainingDeposite > 0 ? remainingDeposite.toString() : '0',
                     });
-
-                    // 2. Log in deposit history WITH order ID
                     await depositHistoryService.logUse(
                         selectedCustomer.$id,
                         selectedCustomer.name,
@@ -259,6 +306,8 @@ export default function Orders() {
             setShowModal(false);
             setSelectedProducts([]);
             setClient('');
+            setDiscountValue(0);        // ← NEW
+            setDiscountType('fixed');    // ← NEW
             refetch();
             refreshProducts();
             refreshCustomers();
@@ -269,12 +318,12 @@ export default function Orders() {
             setSubmitting(false);
         }
     };
+
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this order? Product counts will be restored.')) return;
         try {
             const order = orders.find((o) => o.$id === id);
 
-            // Restore product counts
             if (order?.products && order.products.length > 0) {
                 const quantities = order.quantities || [];
                 for (let i = 0; i < order.products.length; i++) {
@@ -284,19 +333,14 @@ export default function Orders() {
                 }
             }
 
-            // Restore deposit + log history
             if (order?.deposite && parseFloat(order.deposite) > 0) {
                 const customer = customers.find((c) => c.name === order.client);
                 if (customer) {
                     const currentDeposite = parseFloat(customer.deposite || '0');
                     const restoredAmount = parseFloat(order.deposite);
-
-                    // 1. Restore customer's deposit balance
                     await customerService.update(customer.$id, {
                         deposite: (currentDeposite + restoredAmount).toString(),
                     });
-
-                    // 2. Log restoration with order ID
                     await depositHistoryService.logRestore(
                         customer.$id,
                         customer.name,
@@ -314,6 +358,7 @@ export default function Orders() {
             console.error(err);
         }
     };
+
     // ========== FILTER ==========
     const filteredOrders = orders
         .filter((o) =>
@@ -387,6 +432,16 @@ export default function Orders() {
                         <p className="stat-value text-blue">{totalDepositsUsed.toFixed(2)}</p>
                     </div>
                 </div>
+                {/* ← NEW: Total Discounts Stat */}
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }}>
+                        <Tag size={24} />
+                    </div>
+                    <div>
+                        <p className="stat-label">Total Discounts</p>
+                        <p className="stat-value" style={{ color: '#f97316' }}>{totalDiscounts.toFixed(2)}</p>
+                    </div>
+                </div>
                 <div className="stat-card">
                     <div className="stat-icon purple"><DollarSign size={24} /></div>
                     <div>
@@ -395,23 +450,22 @@ export default function Orders() {
                     </div>
                 </div>
             </div>
+
+            {/* Order Cards */}
             <div className="order-grid">
                 {filteredOrders.map((o) => {
                     const paid = isPaid(o);
                     const depUsed = parseFloat(o.deposite || '0');
                     const totalPrice = parseFloat(o.price_egp || '0');
+                    const discountAmt = parseFloat(o.discount || '0');   // ← NEW
 
                     return (
                         <div key={o.$id} className={`order-card ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
                             <div className="order-card-header">
                                 <div className="order-id">#{o.$id.slice(0, 8)}</div>
                                 <div className="customer-card-actions">
-                                    <button
-                                        type="button"
-                                        title="View Details"
-                                        className="btn-icon"
-                                        onClick={() => navigate(`/orders/${o.$id}`)}
-                                    >
+                                    <button type="button" title="View Details" className="btn-icon"
+                                        onClick={() => navigate(`/orders/${o.$id}`)}>
                                         <Eye size={15} />
                                     </button>
                                     <button
@@ -430,25 +484,19 @@ export default function Orders() {
                                 </div>
                             </div>
 
-                            {/* Payment Status */}
                             <div className={`payment-badge ${paid ? 'payment-paid' : 'payment-unpaid'}`}>
                                 {paid ? <><CheckCircle size={14} /> Paid</> : <><Clock size={14} /> Unpaid</>}
                             </div>
 
-                            {/* Client */}
                             <div className="order-details">
                                 <div className="order-detail">
                                     <User size={14} />
                                     <span className="order-client-name">{o.client}</span>
                                 </div>
-
-                                {/* Items Count */}
                                 <div className="order-detail">
                                     <Package size={14} />
                                     <span>{o.products?.length || 0} product(s)</span>
                                 </div>
-
-                                {/* Price */}
                                 <div className="order-numbers">
                                     <div className="order-number-item">
                                         <span>Amount</span>
@@ -456,6 +504,13 @@ export default function Orders() {
                                             {totalPrice.toFixed(2)} EGP
                                         </strong>
                                     </div>
+                                    {/* ← NEW: Show discount on card */}
+                                    {discountAmt > 0 && (
+                                        <div className="order-number-item">
+                                            <span>Discount</span>
+                                            <strong style={{ color: '#f97316' }}>−{discountAmt.toFixed(2)} EGP</strong>
+                                        </div>
+                                    )}
                                     {depUsed > 0 && (
                                         <div className="order-number-item deposite-item">
                                             <span>Deposit Used</span>
@@ -486,6 +541,7 @@ export default function Orders() {
                                 <th>Order ID</th>
                                 <th>Client</th>
                                 <th>Items</th>
+                                <th>Discount</th>    {/* ← NEW */}
                                 <th>Deposit</th>
                                 <th>To Pay</th>
                                 <th>Status</th>
@@ -497,12 +553,21 @@ export default function Orders() {
                             {filteredOrders.map((o) => {
                                 const paid = isPaid(o);
                                 const depUsed = parseFloat(o.deposite || '0');
+                                const discountAmt = parseFloat(o.discount || '0');  // ← NEW
 
                                 return (
                                     <tr key={o.$id} className={paid ? 'row-paid' : 'row-unpaid'}>
                                         <td>#{o.$id.slice(0, 8)}</td>
                                         <td><strong>{o.client}</strong></td>
                                         <td><span className="table-items-text">{o.products?.length || '—'}</span></td>
+                                        {/* ← NEW: Discount column */}
+                                        <td>
+                                            {discountAmt > 0 ? (
+                                                <span style={{ color: '#f97316' }}>−{discountAmt.toFixed(2)}</span>
+                                            ) : (
+                                                <span className="text-muted">—</span>
+                                            )}
+                                        </td>
                                         <td>
                                             {depUsed > 0 ? (
                                                 <span className="text-blue">{depUsed.toFixed(2)}</span>
@@ -529,29 +594,36 @@ export default function Orders() {
                                                 onClick={() => navigate(`/orders/${o.$id}`)}>
                                                 <Eye size={16} />
                                             </button>
-                                            <button type="button" title="Edit" className="btn-icon" onClick={() => openEdit(o)}><Edit size={16} /></button>
-                                            <button type="button" title="Delete" className="btn-icon danger" onClick={() => handleDelete(o.$id)}><Trash2 size={16} /></button>
+                                            <button type="button" title="Edit" className="btn-icon" onClick={() => openEdit(o)}>
+                                                <Edit size={16} />
+                                            </button>
+                                            <button type="button" title="Delete" className="btn-icon danger" onClick={() => handleDelete(o.$id)}>
+                                                <Trash2 size={16} />
+                                            </button>
                                         </td>
                                     </tr>
                                 );
                             })}
                             {filteredOrders.length === 0 && (
-                                <tr><td colSpan={8} className="empty">No orders yet</td></tr>
+                                <tr><td colSpan={9} className="empty">No orders yet</td></tr>
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {/* ===== ORDER MODAL (same as before, no changes needed) ===== */}
+            {/* ===== ORDER MODAL ===== */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
                     <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Edit Order' : 'New Order'}</h2>
-                            <button type="button" title="Close" className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
+                            <button type="button" title="Close" className="btn-icon" onClick={() => setShowModal(false)}>
+                                <X size={20} />
+                            </button>
                         </div>
                         <form onSubmit={handleSubmit}>
+                            {/* Client Select */}
                             <div className="form-group">
                                 <label className='flex! flex-row items-center gap-2'><User size={14} /> Client *</label>
                                 <select title='Select' required value={client} onChange={(e) => setClient(e.target.value)}>
@@ -567,6 +639,7 @@ export default function Orders() {
                                 </select>
                             </div>
 
+                            {/* Deposit Banner */}
                             {selectedCustomer && customerDeposite > 0 && (
                                 <div className="deposite-banner">
                                     <div className="deposite-banner-info flex! flex-row items-center gap-2">
@@ -590,25 +663,12 @@ export default function Orders() {
 
                                     {useDeposite && (
                                         <div className="deposite-input-group" style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            marginTop: '12px',
-                                            width: '100%',
+                                            display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', width: '100%',
                                         }}>
-                                            <label style={{
-                                                fontSize: '14px',
-                                                fontWeight: 600,
-                                                whiteSpace: 'nowrap',
-                                            }}>
+                                            <label style={{ fontSize: '14px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                                                 Amount to use:
                                             </label>
-                                            <div style={{
-                                                position: 'relative',
-                                                flex: 1,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                            }}>
+                                            <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
                                                 <input
                                                     type="number"
                                                     value={depositeAmount || ''}
@@ -618,37 +678,23 @@ export default function Orders() {
                                                     step="0.01"
                                                     onChange={(e) => handleDepositeAmountChange(e.target.value)}
                                                     style={{
-                                                        width: '100%',
-                                                        padding: '8px 70px 8px 12px',
-                                                        borderRadius: '8px',
-                                                        border: '1px solid #d1d5db',
-                                                        fontSize: '14px',
+                                                        width: '100%', padding: '8px 70px 8px 12px',
+                                                        borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px',
                                                     }}
                                                 />
                                                 <button
                                                     type="button"
                                                     onClick={() => setDepositeAmount(maxDeposite)}
                                                     style={{
-                                                        position: 'absolute',
-                                                        right: '4px',
-                                                        padding: '4px 10px',
-                                                        fontSize: '12px',
-                                                        fontWeight: 700,
-                                                        borderRadius: '6px',
-                                                        border: 'none',
-                                                        background: '#3b82f6',
-                                                        color: 'white',
-                                                        cursor: 'pointer',
+                                                        position: 'absolute', right: '4px', padding: '4px 10px',
+                                                        fontSize: '12px', fontWeight: 700, borderRadius: '6px',
+                                                        border: 'none', background: '#3b82f6', color: 'white', cursor: 'pointer',
                                                     }}
                                                 >
                                                     Use Max
                                                 </button>
                                             </div>
-                                            <span style={{
-                                                fontSize: '12px',
-                                                color: '#6b7280',
-                                                whiteSpace: 'nowrap',
-                                            }}>
+                                            <span style={{ fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
                                                 Max: {maxDeposite.toFixed(2)} EGP
                                             </span>
                                         </div>
@@ -656,19 +702,12 @@ export default function Orders() {
 
                                     {useDeposite && depositeAmount > 0 && (
                                         <div style={{
-                                            marginTop: '8px',
-                                            padding: '8px 12px',
-                                            borderRadius: '8px',
-                                            background: 'rgba(59, 130, 246, 0.1)',
-                                            fontSize: '13px',
-                                            display: 'flex',
-                                            justifyContent: 'space-between',
-                                            alignItems: 'center',
+                                            marginTop: '8px', padding: '8px 12px', borderRadius: '8px',
+                                            background: 'rgba(59, 130, 246, 0.1)', fontSize: '13px',
+                                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                         }}>
                                             <span>Deposit to deduct:</span>
-                                            <strong style={{ color: '#3b82f6' }}>
-                                                {depositeToUse.toFixed(2)} EGP
-                                            </strong>
+                                            <strong style={{ color: '#3b82f6' }}>{depositeToUse.toFixed(2)} EGP</strong>
                                         </div>
                                     )}
                                 </div>
@@ -681,6 +720,81 @@ export default function Orders() {
                                 </div>
                             )}
 
+                            {/* ← NEW: Discount Section */}
+                            <div className="form-group mt-4!">
+                                <label className='flex! flex-row items-center gap-2'>
+                                    <Tag size={14} /> Discount
+                                </label>
+                                <div style={{
+                                    display: 'flex', alignItems: 'center', gap: '8px',
+                                    padding: '12px', borderRadius: '12px',
+                                    border: '1px solid #e5e7eb', background: '#fefce8',
+                                }}>
+                                    {/* Discount Type Toggle */}
+                                    <div style={{
+                                        display: 'flex', borderRadius: '8px', overflow: 'hidden',
+                                        border: '1px solid #d1d5db',
+                                    }}>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDiscountType('fixed')}
+                                            style={{
+                                                padding: '6px 12px', fontSize: '13px', fontWeight: 600,
+                                                border: 'none', cursor: 'pointer',
+                                                background: discountType === 'fixed' ? '#f97316' : '#fff',
+                                                color: discountType === 'fixed' ? '#fff' : '#374151',
+                                            }}
+                                        >
+                                            EGP
+                                        </button>
+                                        <button
+                                            title='Discount'
+                                            type="button"
+                                            onClick={() => setDiscountType('percentage')}
+                                            style={{
+                                                padding: '6px 12px', fontSize: '13px', fontWeight: 600,
+                                                border: 'none', cursor: 'pointer',
+                                                background: discountType === 'percentage' ? '#f97316' : '#fff',
+                                                color: discountType === 'percentage' ? '#fff' : '#374151',
+                                            }}
+                                        >
+                                            <Percent size={14} />
+                                        </button>
+                                    </div>
+
+                                    {/* Discount Input */}
+                                    <input
+                                        type="number"
+                                        value={discountValue || ''}
+                                        placeholder={discountType === 'percentage' ? '0 %' : '0.00 EGP'}
+                                        min={0}
+                                        max={discountType === 'percentage' ? 100 : orderTotal}
+                                        step="0.01"
+                                        onChange={(e) => {
+                                            let val = parseFloat(e.target.value) || 0;
+                                            if (discountType === 'percentage') val = Math.min(val, 100);
+                                            else val = Math.min(val, orderTotal);
+                                            setDiscountValue(Math.max(0, val));
+                                        }}
+                                        style={{
+                                            flex: 1, padding: '8px 12px', borderRadius: '8px',
+                                            border: '1px solid #d1d5db', fontSize: '14px',
+                                        }}
+                                    />
+
+                                    {/* Show calculated discount amount for percentage */}
+                                    {discountAmount > 0 && (
+                                        <span style={{
+                                            fontSize: '13px', fontWeight: 700, color: '#f97316',
+                                            whiteSpace: 'nowrap',
+                                        }}>
+                                            −{discountAmount.toFixed(2)} EGP
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Product Selection */}
                             <div className="form-group mt-4!">
                                 <label className='flex! flex-row items-center gap-2'>
                                     <Package size={14} /> Select Products *
@@ -697,8 +811,8 @@ export default function Orders() {
                                         const outOfStock = available === 0;
 
                                         return (
-                                            <div key={p.$id} className={`product-select-item  ${selected ? 'selected' : 'bg-gray-400'} ${outOfStock ? 'out-of-stock' : ''}`}>
-                                                <div className="product-select-check " onClick={() => !outOfStock && toggleProduct(p.$id)}>
+                                            <div key={p.$id} className={`product-select-item ${selected ? 'selected' : 'bg-gray-400'} ${outOfStock ? 'out-of-stock' : ''}`}>
+                                                <div className="product-select-check" onClick={() => !outOfStock && toggleProduct(p.$id)}>
                                                     {selected && <Check size={16} />}
                                                 </div>
                                                 <div className="product-select-info flex! flex-col" onClick={() => !outOfStock && !selected && toggleProduct(p.$id)}>
@@ -731,6 +845,7 @@ export default function Orders() {
                                 </div>
                             </div>
 
+                            {/* ← UPDATED: Order Summary with Discount */}
                             {selectedProducts.length > 0 && (
                                 <div className="order-breakdown">
                                     <h4>Order Summary</h4>
@@ -742,23 +857,55 @@ export default function Orders() {
                                         return (
                                             <div key={sp.productId} className="order-breakdown-item">
                                                 <div className="breakdown-product-info">
-                                                    <span className="breakdown-product-name">{product.name}<span className="breakdown-qty mx-2! py-1!">×{sp.qty}</span></span>
-                                                    <span className="breakdown-unit-price">{displayPrice.toFixed(2)} EGP/pc {soldPc > 0 ? '(sold)' : '(cost)'}</span>
+                                                    <span className="breakdown-product-name">
+                                                        {product.name}
+                                                        <span className="breakdown-qty mx-2! py-1!">×{sp.qty}</span>
+                                                    </span>
+                                                    <span className="breakdown-unit-price">
+                                                        {displayPrice.toFixed(2)} EGP/pc {soldPc > 0 ? '(sold)' : '(cost)'}
+                                                    </span>
                                                 </div>
                                                 <div className="breakdown-item-total">{(displayPrice * sp.qty).toFixed(2)} EGP</div>
                                             </div>
                                         );
                                     })}
                                     <div className="order-breakdown-totals">
-                                        <div className="breakdown-total-row"><span>Subtotal:</span><span>{orderTotal.toFixed(2)} EGP</span></div>
+                                        <div className="breakdown-total-row">
+                                            <span>Subtotal:</span>
+                                            <span>{orderTotal.toFixed(2)} EGP</span>
+                                        </div>
+
+                                        {/* ← NEW: Discount row */}
+                                        {discountAmount > 0 && (
+                                            <div className="breakdown-total-row" style={{ color: '#f97316' }}>
+                                                <span>
+                                                    <Tag size={14} /> Discount
+                                                    {discountType === 'percentage' && ` (${discountValue}%)`}:
+                                                </span>
+                                                <span>−{discountAmount.toFixed(2)} EGP</span>
+                                            </div>
+                                        )}
+
+                                        {/* ← NEW: After discount subtotal */}
+                                        {discountAmount > 0 && (
+                                            <div className="breakdown-total-row">
+                                                <span>After Discount:</span>
+                                                <span>{totalAfterDiscount.toFixed(2)} EGP</span>
+                                            </div>
+                                        )}
+
                                         {depositeToUse > 0 && (
                                             <div className="breakdown-total-row deposite-deduction">
-                                                <span><Wallet size={14} /> Deposit ({depositeToUse.toFixed(2)} of {customerDeposite.toFixed(2)}):</span>
+                                                <span>
+                                                    <Wallet size={14} /> Deposit ({depositeToUse.toFixed(2)} of {customerDeposite.toFixed(2)}):
+                                                </span>
                                                 <span>−{depositeToUse.toFixed(2)} EGP</span>
                                             </div>
                                         )}
+
                                         <div className="breakdown-total-row sold-total final-total">
-                                            <span>Amount to Pay:</span><strong>{amountAfterDeposite.toFixed(2)} EGP</strong>
+                                            <span>Amount to Pay:</span>
+                                            <strong>{amountAfterDeposite.toFixed(2)} EGP</strong>
                                         </div>
                                     </div>
                                 </div>
