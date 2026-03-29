@@ -2463,3 +2463,113 @@ tfoot .totals-row td {
   font-size: 15px;
   font-weight: 700;
 }
+
+
+/* ========== Client Info Grid ========== */
+.client-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.client-info-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.client-info-label {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.client-info-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0;
+}
+
+/* ========== Order Description ========== */
+.order-description-text {
+  font-size: 14px;
+  color: #cbd5e1;
+  line-height: 1.6;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@media print {
+  /* Hide everything except the invoice */
+  body * {
+    visibility: hidden;
+  }
+
+  /* Show only the invoice */
+  .print\:block,
+  .print\:block * {
+    visibility: visible !important;
+    display: block;
+  }
+
+  /* Make the invoice full page */
+  .print\:block {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Reset table display */
+  .print\:block table {
+    display: table !important;
+  }
+
+  .print\:block thead {
+    display: table-header-group !important;
+  }
+
+  .print\:block tbody {
+    display: table-row-group !important;
+  }
+
+  .print\:block tr {
+    display: table-row !important;
+  }
+
+  .print\:block th,
+  .print\:block td {
+    display: table-cell !important;
+  }
+
+  /* Hide scrollbars and sidebar */
+  .sidebar,
+  .print\\:hidden,
+  nav,
+  header {
+    display: none !important;
+  }
+
+  /* Remove shadows and backgrounds */
+  * {
+    box-shadow: none !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 0.5in;
+    size: A4;
+  }
+}

@@ -4,6 +4,7 @@ import {
     Package, DollarSign, Check, Minus,
     Plus as PlusIcon, Wallet, CheckCircle,
     CircleDollarSign, Clock,
+    Eye,
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { customerService } from '../services/customerService';
@@ -11,6 +12,7 @@ import { productService } from '../services/productService';
 import { depositHistoryService } from '../services/depositHistoryService';
 import { useCollection } from '../hooks/useCollection';
 import type { Order, Customer, Product, SelectedProduct } from '../types';
+import { useNavigate } from 'react-router-dom';
 
 export default function Orders() {
     const { data: orders, loading, error, refetch } = useCollection<Order>({
@@ -27,7 +29,7 @@ export default function Orders() {
     const [submitting, setSubmitting] = useState(false);
     const [useDeposite, setUseDeposite] = useState(true);
     const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
-
+    const navigate = useNavigate();
     const refreshProducts = () => {
         productService.listAll().then(setAllProducts).catch(console.error);
     };
@@ -336,12 +338,11 @@ export default function Orders() {
                     </div>
                 </div>
             </div>
-
-            {/* Order Cards */}
             <div className="order-grid">
                 {filteredOrders.map((o) => {
                     const paid = isPaid(o);
                     const depUsed = parseFloat(o.deposite || '0');
+                    const totalPrice = parseFloat(o.price_egp || '0');
 
                     return (
                         <div key={o.$id} className={`order-card ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
@@ -349,11 +350,19 @@ export default function Orders() {
                                 <div className="order-id">#{o.$id.slice(0, 8)}</div>
                                 <div className="customer-card-actions">
                                     <button
+                                        type="button"
+                                        title="View Details"
+                                        className="btn-icon"
+                                        onClick={() => navigate(`/orders/${o.$id}`)}
+                                    >
+                                        <Eye size={15} />
+                                    </button>
+                                    <button
                                         className={`btn-icon ${paid ? 'paid-btn' : 'unpaid-btn'}`}
                                         onClick={() => handleTogglePaid(o)}
                                         title={paid ? 'Mark as unpaid' : 'Mark as paid'}
                                     >
-                                        {paid ? <CheckCircle size={18} /> : <CircleDollarSign size={18} />}
+                                        {paid ? <CheckCircle size={15} /> : <CircleDollarSign size={15} />}
                                     </button>
                                     <button type="button" title="Edit" className="btn-icon" onClick={() => openEdit(o)}>
                                         <Edit size={15} />
@@ -364,26 +373,36 @@ export default function Orders() {
                                 </div>
                             </div>
 
-                            {/* Payment Status Badge */}
+                            {/* Payment Status */}
                             <div className={`payment-badge ${paid ? 'payment-paid' : 'payment-unpaid'}`}>
                                 {paid ? <><CheckCircle size={14} /> Paid</> : <><Clock size={14} /> Unpaid</>}
                             </div>
 
+                            {/* Client */}
                             <div className="order-details">
                                 <div className="order-detail">
                                     <User size={14} />
                                     <span className="order-client-name">{o.client}</span>
                                 </div>
 
+                                {/* Items Count */}
+                                <div className="order-detail">
+                                    <Package size={14} />
+                                    <span>{o.products?.length || 0} product(s)</span>
+                                </div>
+
+                                {/* Price */}
                                 <div className="order-numbers">
                                     <div className="order-number-item">
-                                        <span>{paid ? 'Paid' : 'Unpaid'}</span>
-                                        <strong className={paid ? 'text-green' : 'text-danger'}>{o.price_egp} EGP</strong>
+                                        <span>Amount</span>
+                                        <strong className={paid ? 'text-green' : 'text-danger'}>
+                                            {totalPrice.toFixed(2)} EGP
+                                        </strong>
                                     </div>
                                     {depUsed > 0 && (
                                         <div className="order-number-item deposite-item">
-                                            <span>Deposit</span>
-                                            <strong className="text-blue">{depUsed.toFixed(2)}</strong>
+                                            <span>Deposit Used</span>
+                                            <strong className="text-blue">{depUsed.toFixed(2)} EGP</strong>
                                         </div>
                                     )}
                                 </div>
@@ -449,6 +468,10 @@ export default function Orders() {
                                         </td>
                                         <td>{new Date(o.$createdAt).toLocaleDateString()}</td>
                                         <td className="actions">
+                                            <button type="button" title="View" className="btn-icon"
+                                                onClick={() => navigate(`/orders/${o.$id}`)}>
+                                                <Eye size={16} />
+                                            </button>
                                             <button type="button" title="Edit" className="btn-icon" onClick={() => openEdit(o)}><Edit size={16} /></button>
                                             <button type="button" title="Delete" className="btn-icon danger" onClick={() => handleDelete(o.$id)}><Trash2 size={16} /></button>
                                         </td>
