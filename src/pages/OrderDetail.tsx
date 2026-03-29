@@ -258,7 +258,7 @@ export default function OrderDetail() {
                             </tr>
                         </thead>
                         <tbody>
-                            {productRows.map(({ product, calc, qty, totalCost, totalRevenue, totalProfit }, idx) => (
+                            {productRows.map(({ product, calc, qty, totalProfit }, idx) => (
                                 <tr key={idx}>
                                     <td>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
