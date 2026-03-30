@@ -23,6 +23,8 @@ export interface Product {
   order_id?: string;
   total_order?: string;
   total_shipping?: string;
+  shipped_china?: boolean;  
+  shipped_egy?: boolean;    
 }
 
 export type ProductForm = Omit<Product, '$id' | '$createdAt' | '$updatedAt'>;

@@ -6,6 +6,9 @@ import {
     AlertTriangle,
     CheckCircle,
     User,
+    Plane,
+    MapPin,
+    Filter,
 } from 'lucide-react';
 import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
@@ -23,7 +26,44 @@ const emptyForm: ProductForm = {
     order_id: '',
     total_order: '',
     total_shipping: '',
+    shipped_china: false,
+    shipped_egy: false,
 };
+
+// ✅ Shipping status helper
+type ShippingStatus = 'pending' | 'shipped_china' | 'arrived_egy';
+
+const getShippingStatus = (product: Product): ShippingStatus => {
+    if (product.shipped_egy) return 'arrived_egy';
+    if (product.shipped_china) return 'shipped_china';
+    return 'pending';
+};
+
+const shippingStatusConfig = {
+    pending: {
+        label: 'In China',
+        color: '#f59e0b',
+        bg: 'rgba(245, 158, 11, 0.1)',
+        border: 'rgba(245, 158, 11, 0.3)',
+        icon: Package,
+    },
+    shipped_china: {
+        label: 'Shipped from China',
+        color: '#3b82f6',
+        bg: 'rgba(59, 130, 246, 0.1)',
+        border: 'rgba(59, 130, 246, 0.3)',
+        icon: Plane,
+    },
+    arrived_egy: {
+        label: 'Arrived in Egypt',
+        color: '#10b981',
+        bg: 'rgba(16, 185, 129, 0.1)',
+        border: 'rgba(16, 185, 129, 0.3)',
+        icon: MapPin,
+    },
+};
+
+type ShippingFilter = 'all' | ShippingStatus;
 
 export default function Products() {
     const { data: products, loading, error, refetch } = useCollection<Product>({
@@ -34,12 +74,11 @@ export default function Products() {
         fetchFn: useCallback(() => orderService.listAll(), []),
     });
 
-
-
     const [showModal, setShowModal] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<ProductForm>(emptyForm);
     const [searchTerm, setSearchTerm] = useState('');
+    const [shippingFilter, setShippingFilter] = useState<ShippingFilter>('all'); // ✅ NEW
 
     // Inline edit for shipping/sold
     const [inlineEdit, setInlineEdit] = useState<{
@@ -48,6 +87,35 @@ export default function Products() {
         total_shipping: string;
         sold_price: string;
     } | null>(null);
+
+    // ✅ Toggle shipping status handlers
+    const handleToggleShippedChina = async (product: Product) => {
+        try {
+            const newValue = !product.shipped_china;
+            await productService.toggleShippedChina(product.$id, newValue);
+            // If un-checking shipped_china, also un-check shipped_egy
+            if (!newValue && product.shipped_egy) {
+                await productService.toggleShippedEgy(product.$id, false);
+            }
+            refetch();
+        } catch (err) {
+            console.error('Failed to toggle shipped_china:', err);
+        }
+    };
+
+    const handleToggleShippedEgy = async (product: Product) => {
+        try {
+            const newValue = !product.shipped_egy;
+            await productService.toggleShippedEgy(product.$id, newValue);
+            // If checking shipped_egy, also ensure shipped_china is checked
+            if (newValue && !product.shipped_china) {
+                await productService.toggleShippedChina(product.$id, true);
+            }
+            refetch();
+        } catch (err) {
+            console.error('Failed to toggle shipped_egy:', err);
+        }
+    };
 
     const openCreate = () => {
         setForm(emptyForm);
@@ -65,6 +133,8 @@ export default function Products() {
             order_id: product.order_id || '',
             total_order: product.total_order || '',
             total_shipping: product.total_shipping || '',
+            shipped_china: product.shipped_china ?? false,
+            shipped_egy: product.shipped_egy ?? false,
         });
         setEditingId(product.$id);
         setShowModal(true);
@@ -91,7 +161,6 @@ export default function Products() {
         refetch();
     };
 
-    // Inline save shipping + sold price
     const startInlineEdit = (product: Product) => {
         setInlineEdit({
             id: product.$id,
@@ -100,6 +169,7 @@ export default function Products() {
             sold_price: product.sold_price || '',
         });
     };
+
     const getStockStatus = (product: Product) => {
         const count = parseInt(product.count) || 0;
         if (count === 0) return { label: 'Out of Stock', color: 'red', icon: XCircle };
@@ -107,12 +177,12 @@ export default function Products() {
         return { label: 'In Stock', color: 'green', icon: CheckCircle };
     };
 
-    // Get client name from order
     const getClientName = (product: Product): string => {
         if (!product.order_id) return '';
         const order = orders.find((o) => o.$id === product.order_id);
         return order?.client || '';
     };
+
     const saveInlineEdit = async () => {
         if (!inlineEdit) return;
         try {
@@ -133,16 +203,14 @@ export default function Products() {
         const price = parseFloat(product.price_chi);
         const r = parseFloat(product.rate);
         if (isNaN(price) || isNaN(r)) return 0;
-        return price * r; // PER PIECE
+        return price * r;
     };
 
     const calcShippingPerPiece = (product: Product): number => {
         const totalShipping = parseFloat(product.total_shipping || '0');
         const totalOrder = parseFloat(product.total_order || '0');
         if (totalOrder === 0 || totalShipping === 0) return 0;
-
         const priceEgp = calcPriceEgp(product);
-
         return (priceEgp / totalOrder) * totalShipping;
     };
 
@@ -171,9 +239,22 @@ export default function Products() {
         return orders.find((o) => o.$id === product.order_id);
     };
 
-    const filteredProducts = products.filter((p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // ✅ Filter by search AND shipping status
+    const filteredProducts = products.filter((p) => {
+        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+        if (!matchesSearch) return false;
+
+        if (shippingFilter === 'all') return true;
+        return getShippingStatus(p) === shippingFilter;
+    });
+
+    // ✅ Shipping summary counts
+    const shippingCounts = {
+        all: products.length,
+        pending: products.filter((p) => getShippingStatus(p) === 'pending').length,
+        shipped_china: products.filter((p) => getShippingStatus(p) === 'shipped_china').length,
+        arrived_egy: products.filter((p) => getShippingStatus(p) === 'arrived_egy').length,
+    };
 
     const {
         currentPage,
@@ -190,6 +271,7 @@ export default function Products() {
         data: filteredProducts,
         itemsPerPage: 10,
     });
+
     const totals = products.reduce(
         (acc, p) => {
             const calc = calcAll(p);
@@ -208,7 +290,7 @@ export default function Products() {
     if (error) return <div className="error">Error: {error}</div>;
 
     return (
-        <div className="page overflow-hidden ">
+        <div className="page overflow-hidden">
             <div className="page-header">
                 <h1>Products ({products.length})</h1>
                 <div className="header-actions">
@@ -225,7 +307,7 @@ export default function Products() {
                 </div>
             </div>
 
-            {/* Summary */}
+            {/* ✅ Summary Stats */}
             <div className="stat-grid">
                 <div className="stat-card">
                     <div className="stat-icon blue"><Package size={24} /></div>
@@ -248,7 +330,7 @@ export default function Products() {
                         <p className="stat-value">{totals.totalShipping.toFixed(2)}</p>
                     </div>
                 </div>
-                <div className="stat-card">
+                <div className={`stat-card`}>
                     <div className={`stat-icon ${totals.totalProfit >= 0 ? 'green' : 'red'}`}>
                         <TrendingUp size={24} />
                     </div>
@@ -261,8 +343,69 @@ export default function Products() {
                 </div>
             </div>
 
-            {/* Product Cards */}
-            <div className="flex flex-row items-center h-150 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
+            {/* ✅ NEW: Shipping Filter Tabs */}
+            <div className="shipping-filter-tabs" style={{
+                display: 'flex',
+                gap: '8px',
+                padding: '12px 0',
+                flexWrap: 'wrap',
+            }}>
+                <button
+                    className={`shipping-filter-btn ${shippingFilter === 'all' ? 'active' : ''}`}
+                    onClick={() => setShippingFilter('all')}
+                    style={{
+                        padding: '8px 16px',
+                        borderRadius: '20px',
+                        border: shippingFilter === 'all' ? '2px solid #6366f1' : '2px solid rgba(255,255,255,0.1)',
+                        background: shippingFilter === 'all' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
+                        color: shippingFilter === 'all' ? '#6366f1' : '#888',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s',
+                    }}
+                >
+                    <Filter size={14} />
+                    All ({shippingCounts.all})
+                </button>
+
+                {(Object.keys(shippingStatusConfig) as ShippingStatus[]).map((status) => {
+                    const config = shippingStatusConfig[status];
+                    const Icon = config.icon;
+                    const isActive = shippingFilter === status;
+
+                    return (
+                        <button
+                            key={status}
+                            className={`shipping-filter-btn ${isActive ? 'active' : ''}`}
+                            onClick={() => setShippingFilter(status)}
+                            style={{
+                                padding: '8px 16px',
+                                borderRadius: '20px',
+                                border: `2px solid ${isActive ? config.color : 'rgba(255,255,255,0.1)'}`,
+                                background: isActive ? config.bg : 'transparent',
+                                color: isActive ? config.color : '#888',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                transition: 'all 0.2s',
+                            }}
+                        >
+                            <Icon size={14} />
+                            {config.label} ({shippingCounts[status]})
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ✅ Product Cards */}
+            <div className="flex flex-row items-center h-178 gap-4 !max-w-full !overflow-x-auto py-5! my-5!">
                 {filteredProducts.map((p) => {
                     const calc = calcAll(p);
                     const order = getOrderForProduct(p);
@@ -270,22 +413,22 @@ export default function Products() {
                     const clientName = getClientName(p);
                     const isEditing = inlineEdit?.id === p.$id;
                     const StockIcon = stock.icon;
+                    const shipStatus = getShippingStatus(p);
+                    const shipConfig = shippingStatusConfig[shipStatus];
+                    const ShipIcon = shipConfig.icon;
 
                     return (
                         <div key={p.$id} className={`product-card ${stock.color === 'red' ? 'product-card-oos' : ''} w-75 h-full shrink-0`}>
                             <div className="product-card-header">
                                 <div className="product-icon"><Package size={22} /></div>
                                 <div className="customer-card-actions">
-                                    <button type='button' title='edit' className="btn-icon" onClick={() => openEdit(p)}><Edit size={15} /></button>
-                                    <button type='button' title='delete' className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={15} /></button>
+                                    <button type="button" title="edit" className="btn-icon" onClick={() => openEdit(p)}><Edit size={15} /></button>
+                                    <button type="button" title="delete" className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={15} /></button>
                                 </div>
                             </div>
 
-                            <h3 className="product-name">
-                                {p.name}
-                            </h3>
+                            <h3 className="product-name">{p.name}</h3>
 
-                            {/* Client name from order */}
                             {clientName && (
                                 <div className="product-client-badge">
                                     <User size={12} /> {clientName}
@@ -298,12 +441,111 @@ export default function Products() {
                                 </div>
                             )}
 
+                            {/* ✅ NEW: Shipping Status Badge */}
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '6px 12px',
+                                borderRadius: '8px',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                background: shipConfig.bg,
+                                color: shipConfig.color,
+                                border: `1px solid ${shipConfig.border}`,
+                                marginBottom: '8px',
+                            }}>
+                                <ShipIcon size={14} />
+                                {shipConfig.label}
+                            </div>
+
+                            {/* ✅ NEW: Shipping Toggle Switches */}
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '6px',
+                                marginBottom: '10px',
+                                padding: '8px',
+                                borderRadius: '8px',
+                                background: 'rgba(255,255,255,0.03)',
+                            }}>
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ccc' }}>
+                                        <Plane size={13} /> Shipped from China
+                                    </span>
+                                    <div
+                                        onClick={() => handleToggleShippedChina(p)}
+                                        style={{
+                                            width: '36px',
+                                            height: '20px',
+                                            borderRadius: '10px',
+                                            background: p.shipped_china ? '#3b82f6' : 'rgba(255,255,255,0.15)',
+                                            position: 'relative',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.2s',
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            background: '#fff',
+                                            position: 'absolute',
+                                            top: '2px',
+                                            left: p.shipped_china ? '18px' : '2px',
+                                            transition: 'left 0.2s',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                        }} />
+                                    </div>
+                                </label>
+
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                }}>
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ccc' }}>
+                                        <MapPin size={13} /> Arrived in Egypt
+                                    </span>
+                                    <div
+                                        onClick={() => handleToggleShippedEgy(p)}
+                                        style={{
+                                            width: '36px',
+                                            height: '20px',
+                                            borderRadius: '10px',
+                                            background: p.shipped_egy ? '#10b981' : 'rgba(255,255,255,0.15)',
+                                            position: 'relative',
+                                            cursor: 'pointer',
+                                            transition: 'background 0.2s',
+                                        }}
+                                    >
+                                        <div style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            borderRadius: '50%',
+                                            background: '#fff',
+                                            position: 'absolute',
+                                            top: '2px',
+                                            left: p.shipped_egy ? '18px' : '2px',
+                                            transition: 'left 0.2s',
+                                            boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                                        }} />
+                                    </div>
+                                </label>
+                            </div>
+
                             <div className="product-stats">
                                 <div className="product-stat">
                                     <span className="product-stat-label">Count</span>
-                                    <span className={`product-stat-value stock-${stock.color}`}>
-                                        {p.count}
-                                    </span>
+                                    <span className={`product-stat-value stock-${stock.color}`}>{p.count}</span>
                                 </div>
                                 <div className="product-stat">
                                     <span className="product-stat-label">CNY</span>
@@ -374,14 +616,12 @@ export default function Products() {
                                             <span><Tag size={12} /> Sold/piece</span>
                                             <span>{calc.soldPrice > 0 ? calc.soldPrice.toFixed(2) : '—'}</span>
                                         </div>
-                                        <div className={`breakdown-row breakdown-total ${calc.profitPerPiece >= 0 ? 'profit-positive' : 'profit-negative'
-                                            }`}>
+                                        <div className={`breakdown-row breakdown-total ${calc.profitPerPiece >= 0 ? 'profit-positive' : 'profit-negative'}`}>
                                             <span><TrendingUp size={12} /> Profit/piece</span>
                                             <span>{calc.soldPrice > 0 ? calc.profitPerPiece.toFixed(2) + ' EGP' : '—'}</span>
                                         </div>
                                         {calc.soldPrice > 0 && calc.count > 1 && (
-                                            <div className={`breakdown-row breakdown-total ${calc.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'
-                                                }`}>
+                                            <div className={`breakdown-row breakdown-total ${calc.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>
                                                 <span>Total Profit (×{calc.count})</span>
                                                 <span><strong>{calc.totalProfit.toFixed(2)} EGP</strong></span>
                                             </div>
@@ -407,7 +647,8 @@ export default function Products() {
                     <div className="empty-state"><p>No products found</p></div>
                 )}
             </div>
-            {/* Detailed Table */}
+
+            {/* ✅ Detailed Table */}
             <div className="card mt-4">
                 <h2>All Products — Detailed</h2>
                 <div className="table-responsive">
@@ -416,6 +657,7 @@ export default function Products() {
                             <tr>
                                 <th>Name</th>
                                 <th>Client</th>
+                                <th>Shipping Status</th>
                                 <th>Stock</th>
                                 <th>CNY</th>
                                 <th>Rate</th>
@@ -434,11 +676,14 @@ export default function Products() {
                                 const stock = getStockStatus(p);
                                 const clientName = getClientName(p);
                                 const StockIcon = stock.icon;
+                                const shipStatus = getShippingStatus(p);
+                                const shipConfig = shippingStatusConfig[shipStatus];
+                                const ShipIcon = shipConfig.icon;
 
                                 return (
                                     <tr key={p.$id} className={stock.color === 'red' ? 'row-oos' : ''}>
                                         <td>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className='w-[300px] overflow-hidden'>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }} className="w-[300px] overflow-hidden">
                                                 <div className="table-avatar-product"><Package size={16} /></div>
                                                 <div>
                                                     <span>{p.name}</span>
@@ -457,6 +702,47 @@ export default function Products() {
                                             ) : (
                                                 <span className="text-muted">—</span>
                                             )}
+                                        </td>
+                                        {/* ✅ NEW: Shipping Status Column */}
+                                        <td>
+                                            <div style={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '5px',
+                                                padding: '4px 10px',
+                                                borderRadius: '12px',
+                                                fontSize: '11px',
+                                                fontWeight: 600,
+                                                background: shipConfig.bg,
+                                                color: shipConfig.color,
+                                                border: `1px solid ${shipConfig.border}`,
+                                                whiteSpace: 'nowrap',
+                                            }}>
+                                                <ShipIcon size={12} />
+                                                {shipConfig.label}
+                                            </div>
+
+                                            {/* Mini toggles in table */}
+                                            <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#888', cursor: 'pointer' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={p.shipped_china ?? false}
+                                                        onChange={() => handleToggleShippedChina(p)}
+                                                        style={{ width: '13px', height: '13px', accentColor: '#3b82f6' }}
+                                                    />
+                                                    🇨🇳
+                                                </label>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: '#888', cursor: 'pointer' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={p.shipped_egy ?? false}
+                                                        onChange={() => handleToggleShippedEgy(p)}
+                                                        style={{ width: '13px', height: '13px', accentColor: '#10b981' }}
+                                                    />
+                                                    🇪🇬
+                                                </label>
+                                            </div>
                                         </td>
                                         <td>
                                             <span className={`stock-badge stock-badge-${stock.color}`}>
@@ -488,8 +774,8 @@ export default function Products() {
                                             <button className="btn-icon" onClick={() => startInlineEdit(p)} title="Set shipping & sold">
                                                 <Truck size={16} />
                                             </button>
-                                            <button title='Edit' type="button" className="btn-icon" onClick={() => openEdit(p)}><Edit size={16} /></button>
-                                            <button title='Delete' type="button" className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={16} /></button>
+                                            <button title="Edit" type="button" className="btn-icon" onClick={() => openEdit(p)}><Edit size={16} /></button>
+                                            <button title="Delete" type="button" className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={16} /></button>
                                         </td>
                                     </tr>
                                 );
@@ -499,6 +785,7 @@ export default function Products() {
                             <tfoot>
                                 <tr className="totals-row">
                                     <td><strong>TOTALS</strong></td>
+                                    <td>—</td>
                                     <td>—</td>
                                     <td><strong>{totals.totalCount}</strong></td>
                                     <td colSpan={2}>—</td>
@@ -519,6 +806,7 @@ export default function Products() {
                     </table>
                 </div>
             </div>
+
             <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
@@ -532,13 +820,13 @@ export default function Products() {
                 onItemsPerPageChange={setItemsPerPage}
             />
 
-            {/* Modal */}
+            {/* ✅ Modal with shipping flags */}
             {showModal && (
                 <div className="modal-overlay" onClick={() => setShowModal(false)}>
                     <div className="modal" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Edit Product' : 'New Product'}</h2>
-                            <button type="button" title='Close' className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
+                            <button type="button" title="Close" className="btn-icon" onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
@@ -616,13 +904,10 @@ export default function Products() {
                                     const totalOrder = parseFloat(form.total_order || '0');
                                     const totalShipping = parseFloat(form.total_shipping || '0');
                                     const soldPrice = parseFloat(form.sold_price);
-
-                                    // Shipping per piece = (piece_cost / total_order) × total_shipping
                                     let shippingPerPiece = 0;
                                     if (totalOrder > 0 && totalShipping > 0) {
                                         shippingPerPiece = (costPerPiece / totalOrder) * totalShipping;
                                     }
-
                                     const totalCostPerPiece = costPerPiece + shippingPerPiece;
                                     const profitPerPiece = soldPrice - totalCostPerPiece;
 
@@ -646,14 +931,12 @@ export default function Products() {
                                                 <span><Tag size={12} /> Sold/piece:</span>
                                                 <span>{soldPrice.toFixed(2)} EGP</span>
                                             </div>
-                                            <div className={`profit-preview-row profit-preview-total ${profitPerPiece >= 0 ? 'profit-positive' : 'profit-negative'
-                                                }`}>
+                                            <div className={`profit-preview-row profit-preview-total ${profitPerPiece >= 0 ? 'profit-positive' : 'profit-negative'}`}>
                                                 <span><TrendingUp size={12} /> Profit/piece:</span>
                                                 <strong>{profitPerPiece.toFixed(2)} EGP</strong>
                                             </div>
                                             {count > 1 && (
-                                                <div className={`profit-preview-row profit-preview-total ${profitPerPiece * count >= 0 ? 'profit-positive' : 'profit-negative'
-                                                    }`}>
+                                                <div className={`profit-preview-row profit-preview-total ${profitPerPiece * count >= 0 ? 'profit-positive' : 'profit-negative'}`}>
                                                     <span>Total Profit (×{count}):</span>
                                                     <strong>{(profitPerPiece * count).toFixed(2)} EGP</strong>
                                                 </div>
@@ -662,6 +945,80 @@ export default function Products() {
                                     );
                                 })()
                             )}
+
+                            {/* ✅ NEW: Shipping Status in Modal */}
+                            <div className="form-divider"><span>Shipping Status</span></div>
+
+                            <div style={{
+                                display: 'flex',
+                                gap: '16px',
+                                padding: '12px',
+                                borderRadius: '10px',
+                                background: 'rgba(255,255,255,0.03)',
+                            }}>
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    color: form.shipped_china ? '#3b82f6' : '#888',
+                                    padding: '8px 14px',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${form.shipped_china ? '#3b82f6' : 'rgba(255,255,255,0.1)'}`,
+                                    background: form.shipped_china ? 'rgba(59,130,246,0.1)' : 'transparent',
+                                    transition: 'all 0.2s',
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.shipped_china ?? false}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setForm({
+                                                ...form,
+                                                shipped_china: checked,
+                                                // If unchecked, also uncheck Egypt
+                                                shipped_egy: checked ? form.shipped_egy : false,
+                                            });
+                                        }}
+                                        style={{ accentColor: '#3b82f6' }}
+                                    />
+                                    <Plane size={16} />
+                                    Shipped from China 🇨🇳
+                                </label>
+
+                                <label style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    color: form.shipped_egy ? '#10b981' : '#888',
+                                    padding: '8px 14px',
+                                    borderRadius: '8px',
+                                    border: `1px solid ${form.shipped_egy ? '#10b981' : 'rgba(255,255,255,0.1)'}`,
+                                    background: form.shipped_egy ? 'rgba(16,185,129,0.1)' : 'transparent',
+                                    transition: 'all 0.2s',
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={form.shipped_egy ?? false}
+                                        onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setForm({
+                                                ...form,
+                                                shipped_egy: checked,
+                                                // If checked, also check China
+                                                shipped_china: checked ? true : form.shipped_china,
+                                            });
+                                        }}
+                                        style={{ accentColor: '#10b981' }}
+                                    />
+                                    <MapPin size={16} />
+                                    Arrived in Egypt 🇪🇬
+                                </label>
+                            </div>
+
                             <div className="form-actions">
                                 <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
                                 <button type="submit" className="btn btn-primary">{editingId ? 'Update' : 'Create'}</button>

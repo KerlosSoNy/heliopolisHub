@@ -21,7 +21,11 @@ export const productService = {
       DATABASE_ID,
       COLLECTIONS.PRODUCTS,
       ID.unique(),
-      data
+      {
+        ...data,
+        shipped_china: data.shipped_china ?? false,
+        shipped_egy: data.shipped_egy ?? false,
+      }
     );
     return response as unknown as Product;
   },
@@ -49,7 +53,28 @@ export const productService = {
     return response.total;
   },
 
-  // Link products to order
+  // ✅ NEW: Toggle shipped_china
+  async toggleShippedChina(id: string, value: boolean): Promise<Product> {
+    const response = await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.PRODUCTS,
+      id,
+      { shipped_china: value }
+    );
+    return response as unknown as Product;
+  },
+
+  // ✅ NEW: Toggle shipped_egy
+  async toggleShippedEgy(id: string, value: boolean): Promise<Product> {
+    const response = await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.PRODUCTS,
+      id,
+      { shipped_egy: value }
+    );
+    return response as unknown as Product;
+  },
+
   async linkToOrder(productIds: string[], orderId: string): Promise<void> {
     await Promise.all(
       productIds.map((id) =>
@@ -60,24 +85,19 @@ export const productService = {
     );
   },
 
-  // 👇 NEW: Decrease product count after order
   async decreaseCount(productId: string, qty: number): Promise<void> {
-    // Get current product
     const product = await this.get(productId);
     const currentCount = parseInt(product.count) || 0;
     const newCount = Math.max(0, currentCount - qty);
-
     await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRODUCTS, productId, {
       count: newCount.toString(),
     });
   },
 
-  // 👇 NEW: Increase count (for order delete/undo)
   async increaseCount(productId: string, qty: number): Promise<void> {
     const product = await this.get(productId);
     const currentCount = parseInt(product.count) || 0;
     const newCount = currentCount + qty;
-
     await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRODUCTS, productId, {
       count: newCount.toString(),
     });
