@@ -82,13 +82,34 @@ export default function Orders() {
     //     }
     //     return Math.min(discVal, subtotal);
     // };
+    const editingOrder = useMemo(
+        () => (editingId ? orders.find((o) => o.$id === editingId) : null),
+        [editingId, orders]
+    );
+
+    const oldOrderDeposit = useMemo(() => {
+        if (!editingOrder) return 0;
+        return parseFloat(editingOrder.deposite || '0');
+    }, [editingOrder]);
 
     const selectedCustomer = useMemo(() =>
         customers.find((c) => c.name === client), [client, customers]);
 
-    const customerDeposite = useMemo(() =>
-        parseFloat(selectedCustomer?.deposite || '0'), [selectedCustomer]);
+    const customerDeposite = useMemo(
+        () => parseFloat(selectedCustomer?.deposite || '0'),
+        [selectedCustomer]
+    );
 
+    const effectiveCustomerDeposit = useMemo(() => {
+        if (!selectedCustomer) return 0;
+
+        // If editing the same customer's order, add back the deposit already used in that order
+        if (editingOrder && editingOrder.client === selectedCustomer.name) {
+            return customerDeposite + oldOrderDeposit;
+        }
+
+        return customerDeposite;
+    }, [selectedCustomer, customerDeposite, editingOrder, oldOrderDeposit]);
     // ========== TOTALS ==========
     const orderTotal = useMemo(() => {
         return selectedProducts.reduce((sum, sp) => {
@@ -113,9 +134,9 @@ export default function Orders() {
 
     // ← UPDATED: Max deposit now based on discounted total
     const maxDeposite = useMemo(() => {
-        if (!useDeposite || customerDeposite <= 0) return 0;
-        return Math.min(customerDeposite, totalAfterDiscount);  // ← CHANGED
-    }, [useDeposite, customerDeposite, totalAfterDiscount]);
+        if (!useDeposite || effectiveCustomerDeposit <= 0) return 0;
+        return Math.min(effectiveCustomerDeposit, totalAfterDiscount);
+    }, [useDeposite, effectiveCustomerDeposit, totalAfterDiscount]);
 
     const depositeToUse = useMemo(() => {
         if (!useDeposite) return 0;
@@ -128,7 +149,7 @@ export default function Orders() {
             setDepositeAmount(0);
             return;
         }
-        setDepositeAmount(Math.min(num, customerDeposite));
+        setDepositeAmount(Math.min(num, effectiveCustomerDeposit));
     };
 
     // ← UPDATED: Final amount = subtotal - discount - deposit
@@ -258,6 +279,10 @@ export default function Orders() {
                 .filter(Boolean)
                 .join(', ');
 
+            const existingOrder = editingId
+                ? orders.find((o) => o.$id === editingId)
+                : null;
+
             const orderData = {
                 client,
                 product: productDescription,
@@ -265,19 +290,170 @@ export default function Orders() {
                 quantities: selectedProducts.map((sp) => sp.qty.toString()),
                 price_egp: amountAfterDeposite.toFixed(2),
                 deposite: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
-                customer_deposite: customerDeposite > 0 ? customerDeposite.toFixed(2) : '0',
-                is_paid: 'no',
-                discount: discountAmount > 0 ? discountAmount.toFixed(2) : '0',   // ← NEW: store actual amount
-                discount_type: discountType,                                         // ← NEW
+                customer_deposite: effectiveCustomerDeposit > 0 ? effectiveCustomerDeposit.toFixed(2) : '0',
+                is_paid: existingOrder?.is_paid || 'no', // preserve paid status on edit
+                discount: discountAmount > 0 ? discountAmount.toFixed(2) : '0',
+                discount_type: discountType,
             };
 
             let orderId: string;
 
             if (editingId) {
+                if (!existingOrder) {
+                    throw new Error('Original order not found');
+                }
+
+                // =========================
+                // 1) RESTORE OLD STOCK
+                // =========================
+                const oldProducts = existingOrder.products || [];
+                const oldQuantities = existingOrder.quantities || [];
+
+                for (let i = 0; i < oldProducts.length; i++) {
+                    const pid = oldProducts[i];
+                    const qty = parseInt(oldQuantities[i] || '1') || 1;
+                    await productService.increaseCount(pid, qty);
+                }
+
+                // =========================
+                // 2) VALIDATE NEW STOCK
+                // =========================
+                const latestProducts = await productService.listAll();
+
+                for (const sp of selectedProducts) {
+                    const product = latestProducts.find((p) => p.$id === sp.productId);
+                    if (!product) {
+                        throw new Error(`Product not found`);
+                    }
+
+                    const available = parseInt(product.count || '0') || 0;
+                    if (sp.qty > available) {
+                        throw new Error(`Not enough stock for ${product.name}. Available: ${available}`);
+                    }
+                }
+
+                // =========================
+                // 3) APPLY NEW STOCK
+                // =========================
+                for (const sp of selectedProducts) {
+                    await productService.decreaseCount(sp.productId, sp.qty);
+                }
+
+                // =========================
+                // 4) RECONCILE DEPOSIT
+                // =========================
+                const oldDeposit = parseFloat(existingOrder.deposite || '0');
+                const newDeposit = depositeToUse;
+
+                const oldCustomer = customers.find((c) => c.name === existingOrder.client);
+                const newCustomer = selectedCustomer;
+
+                // Case A: same customer
+                if (oldCustomer && newCustomer && oldCustomer.$id === newCustomer.$id) {
+                    const diff = newDeposit - oldDeposit;
+                    const currentCustomerDeposit = parseFloat(newCustomer.deposite || '0');
+
+                    if (diff > 0) {
+                        // Need to deduct more deposit
+                        if (diff > currentCustomerDeposit) {
+                            throw new Error(
+                                `${newCustomer.name} does not have enough deposit. Available: ${currentCustomerDeposit.toFixed(2)} EGP`
+                            );
+                        }
+
+                        await customerService.update(newCustomer.$id, {
+                            deposite: Math.max(0, currentCustomerDeposit - diff).toFixed(2),
+                        });
+
+                        await depositHistoryService.logUse(
+                            newCustomer.$id,
+                            newCustomer.name,
+                            diff.toFixed(2),
+                            `Additional ${diff.toFixed(2)} EGP used when updating Order #${editingId.slice(0, 8)} — ${productDescription}`
+                        );
+                    } else if (diff < 0) {
+                        // Need to restore deposit
+                        const restoreAmount = Math.abs(diff);
+
+                        await customerService.update(newCustomer.$id, {
+                            deposite: (currentCustomerDeposit + restoreAmount).toFixed(2),
+                        });
+
+                        await depositHistoryService.logRestore(
+                            newCustomer.$id,
+                            newCustomer.name,
+                            restoreAmount.toFixed(2),
+                            `Restored ${restoreAmount.toFixed(2)} EGP when updating Order #${editingId.slice(0, 8)}`
+                        );
+                    }
+                } else {
+                    // Case B: customer changed
+                    // Restore old deposit to old customer
+                    if (oldCustomer && oldDeposit > 0) {
+                        const oldCustomerCurrentDeposit = parseFloat(oldCustomer.deposite || '0');
+
+                        await customerService.update(oldCustomer.$id, {
+                            deposite: (oldCustomerCurrentDeposit + oldDeposit).toFixed(2),
+                        });
+
+                        await depositHistoryService.logRestore(
+                            oldCustomer.$id,
+                            oldCustomer.name,
+                            oldDeposit.toFixed(2),
+                            `Restored ${oldDeposit.toFixed(2)} EGP from updated Order #${editingId.slice(0, 8)} (customer changed)`
+                        );
+                    }
+
+                    // Deduct new deposit from new customer
+                    if (newCustomer && newDeposit > 0) {
+                        const newCustomerCurrentDeposit = parseFloat(newCustomer.deposite || '0');
+
+                        if (newDeposit > newCustomerCurrentDeposit) {
+                            throw new Error(
+                                `${newCustomer.name} does not have enough deposit. Available: ${newCustomerCurrentDeposit.toFixed(2)} EGP`
+                            );
+                        }
+
+                        await customerService.update(newCustomer.$id, {
+                            deposite: Math.max(0, newCustomerCurrentDeposit - newDeposit).toFixed(2),
+                        });
+
+                        await depositHistoryService.logUse(
+                            newCustomer.$id,
+                            newCustomer.name,
+                            newDeposit.toFixed(2),
+                            `Used ${newDeposit.toFixed(2)} EGP when updating Order #${editingId.slice(0, 8)} — ${productDescription}`
+                        );
+                    }
+                }
+
+                // =========================
+                // 5) UPDATE ORDER
+                // =========================
                 await orderService.update(editingId, orderData);
                 orderId = editingId;
             } else {
-                const newOrder = await orderService.create(orderData);
+                // =========================
+                // CREATE ORDER
+                // =========================
+                const latestProducts = await productService.listAll();
+
+                for (const sp of selectedProducts) {
+                    const product = latestProducts.find((p) => p.$id === sp.productId);
+                    if (!product) {
+                        throw new Error(`Product not found`);
+                    }
+
+                    const available = parseInt(product.count || '0') || 0;
+                    if (sp.qty > available) {
+                        throw new Error(`Not enough stock for ${product.name}. Available: ${available}`);
+                    }
+                }
+
+                const newOrder = await orderService.create({
+                    ...orderData,
+                    is_paid: 'no',
+                });
                 orderId = newOrder.$id;
 
                 for (const sp of selectedProducts) {
@@ -286,9 +462,11 @@ export default function Orders() {
 
                 if (depositeToUse > 0 && selectedCustomer) {
                     const remainingDeposite = Math.max(0, customerDeposite - depositeToUse);
+
                     await customerService.update(selectedCustomer.$id, {
-                        deposite: remainingDeposite > 0 ? remainingDeposite.toString() : '0',
+                        deposite: remainingDeposite.toFixed(2),
                     });
+
                     await depositHistoryService.logUse(
                         selectedCustomer.$id,
                         selectedCustomer.name,
@@ -298,27 +476,35 @@ export default function Orders() {
                 }
             }
 
+            // =========================
+            // LINK PRODUCTS TO ORDER
+            // =========================
             const productIds = selectedProducts.map((sp) => sp.productId);
             if (productIds.length > 0) {
                 await productService.linkToOrder(productIds, orderId);
             }
 
+            // =========================
+            // RESET UI
+            // =========================
             setShowModal(false);
             setSelectedProducts([]);
             setClient('');
-            setDiscountValue(0);        // ← NEW
-            setDiscountType('fixed');    // ← NEW
+            setDepositeAmount(0);
+            setUseDeposite(true);
+            setDiscountValue(0);
+            setDiscountType('fixed');
+
             refetch();
             refreshProducts();
             refreshCustomers();
         } catch (err) {
             console.error('Order error:', err);
-            alert('Failed to create order.');
+            alert(err instanceof Error ? err.message : 'Failed to save order.');
         } finally {
             setSubmitting(false);
         }
     };
-
     const handleDelete = async (id: string) => {
         if (!confirm('Delete this order? Product counts will be restored.')) return;
         try {
@@ -640,13 +826,13 @@ export default function Orders() {
                             </div>
 
                             {/* Deposit Banner */}
-                            {selectedCustomer && customerDeposite > 0 && (
+                            {selectedCustomer && effectiveCustomerDeposit > 0 && (
                                 <div className="deposite-banner">
                                     <div className="deposite-banner-info flex! flex-row items-center gap-2">
                                         <Wallet size={18} />
                                         <div>
                                             <strong>{selectedCustomer.name}</strong> has deposit
-                                            <span className="deposite-amount"> {customerDeposite.toFixed(2)} EGP</span>
+                                            <span className="deposite-amount"> {effectiveCustomerDeposit.toFixed(2)} EGP</span>
                                         </div>
                                     </div>
                                     <label className="deposite-toggle">
@@ -713,7 +899,7 @@ export default function Orders() {
                                 </div>
                             )}
 
-                            {selectedCustomer && customerDeposite === 0 && (
+                            {selectedCustomer && effectiveCustomerDeposit === 0 && (
                                 <div className="deposite-banner no-deposite flex! flex-row items-center gap-2 mb-4!">
                                     <Wallet size={16} />
                                     <span><strong>{selectedCustomer.name}</strong> has no deposit</span>
@@ -897,7 +1083,7 @@ export default function Orders() {
                                         {depositeToUse > 0 && (
                                             <div className="breakdown-total-row deposite-deduction">
                                                 <span>
-                                                    <Wallet size={14} /> Deposit ({depositeToUse.toFixed(2)} of {customerDeposite.toFixed(2)}):
+                                                    <Wallet size={14} /> Deposit ({depositeToUse.toFixed(2)} of {effectiveCustomerDeposit.toFixed(2)}):
                                                 </span>
                                                 <span>−{depositeToUse.toFixed(2)} EGP</span>
                                             </div>
