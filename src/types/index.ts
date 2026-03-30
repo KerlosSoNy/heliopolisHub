@@ -113,3 +113,32 @@ export type ShipmentForm = {
   cost_in_china: string;
   total_cost: string;
 };
+
+
+// types.ts — ADD these
+
+// ========== TRANSACTION ==========
+export type TransactionType = 'expense' | 'income';
+export type PaymentMethod = 'instapay' | 'vodafone_cash' | 'cash';
+export type TransactionCategory =
+    | 'store_payment'
+    | 'customer_payment'
+    | 'shipping'
+    | 'refund'
+    | 'other';
+
+export interface Transaction {
+    $id: string;
+    $createdAt: string;
+    $updatedAt: string;
+    type: TransactionType;
+    category: TransactionCategory;
+    description: string;
+    amount: string;
+    payment_method: PaymentMethod;
+    person: string;
+    receipt_id?: string;
+    note?: string;
+}
+
+export type TransactionForm = Omit<Transaction, '$id' | '$createdAt' | '$updatedAt'>;

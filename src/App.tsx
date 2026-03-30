@@ -7,6 +7,7 @@ import {
   LogOut,
   Plus,
   ShieldIcon,
+  DollarSign,
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -19,6 +20,7 @@ import AdditionalPage from './pages/Additional';
 import Shipments from './pages/Shipments';
 import ShipmentDetail from './pages/ShipmentDetail';
 import OrderDetail from './pages/OrderDetail';
+import Transactions from './pages/Transactions';
 
 function AppLayout() {
   const { user, logout } = useAuth();
@@ -46,6 +48,9 @@ function AppLayout() {
           </NavLink>
           <NavLink to="/orders">
             <ShoppingCart size={18} /> Orders
+          </NavLink>
+          <NavLink to="/transactions">
+            <DollarSign size={18} /> Transactions
           </NavLink>
         </nav>
 
@@ -75,6 +80,7 @@ function AppLayout() {
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/shipments/:id" element={<ShipmentDetail />} />
+          <Route path="/transactions" element={<Transactions />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
