@@ -18,7 +18,8 @@ export const COLLECTIONS = {
     DEPOSIT_HISTORY: 'deposit_history',
     ADDITIONAL: 'additional',
     SHIPMENTS: 'shipments',
-    TRANSACTIONS: 'transactions',  // ✅ NEW
+    TRANSACTIONS: 'transactions', 
+    PRODUCT_HISTORY: 'product_history', 
 };
 
 export { ID, Query };

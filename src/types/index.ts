@@ -142,3 +142,21 @@ export interface Transaction {
 }
 
 export type TransactionForm = Omit<Transaction, '$id' | '$createdAt' | '$updatedAt'>;
+
+
+// ========== PRODUCT HISTORY ==========
+export interface ProductHistory {
+  $id: string;
+  $createdAt: string;
+  $updatedAt: string;
+  product_id: string;
+  product_name: string;
+  price_chi: string;
+  rate: string;
+  price_egp: string;
+  count: string;
+  note?: string;
+  source?: string; // 'create' | 'update' | 'restock'
+}
+
+export type ProductHistoryForm = Omit<ProductHistory, '$id' | '$createdAt' | '$updatedAt'>;

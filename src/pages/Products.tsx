@@ -1,4 +1,3 @@
-import { useState, useCallback } from 'react';
 import {
     Trash2, Edit, Plus, X, Package, Hash,
     DollarSign, TrendingUp, Truck, Tag, Save,
@@ -9,6 +8,7 @@ import {
     Plane,
     MapPin,
     Filter,
+    History,
 } from 'lucide-react';
 import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
@@ -16,6 +16,9 @@ import { useCollection } from '../hooks/useCollection';
 import type { Product, ProductForm, Order } from '../types';
 import { usePagination } from '../lib/hooks/usePagination';
 import Pagination from '../components/Pagination';
+import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo } from 'react';
+import { Search } from 'lucide-react';
 
 const emptyForm: ProductForm = {
     name: '',
@@ -79,6 +82,10 @@ export default function Products() {
     const [form, setForm] = useState<ProductForm>(emptyForm);
     const [searchTerm, setSearchTerm] = useState('');
     const [shippingFilter, setShippingFilter] = useState<ShippingFilter>('all'); // ✅ NEW
+    const [minPrice, setMinPrice] = useState('');
+    const [maxPrice, setMaxPrice] = useState('');
+    const [sortBy, setSortBy] = useState<'name' | 'price_asc' | 'price_desc' | 'date' | 'profit'>('date');
+    const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
 
     // Inline edit for shipping/sold
     const [inlineEdit, setInlineEdit] = useState<{
@@ -233,6 +240,7 @@ export default function Products() {
             totalProfit: profitPerPiece * count,
         };
     };
+    const navigate = useNavigate();
 
     const getOrderForProduct = (product: Product): Order | undefined => {
         if (!product.order_id) return undefined;
@@ -240,21 +248,64 @@ export default function Products() {
     };
 
     // ✅ Filter by search AND shipping status
-    const filteredProducts = products.filter((p) => {
-        const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
-        if (!matchesSearch) return false;
+    const filteredProducts = useMemo(() => {
+        let result = products.filter((p) => {
+            // Search filter
+            const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
+            if (!matchesSearch) return false;
 
-        if (shippingFilter === 'all') return true;
-        return getShippingStatus(p) === shippingFilter;
-    });
+            // Shipping filter
+            if (shippingFilter !== 'all' && getShippingStatus(p) !== shippingFilter) return false;
 
-    // ✅ Shipping summary counts
-    const shippingCounts = {
-        all: products.length,
-        pending: products.filter((p) => getShippingStatus(p) === 'pending').length,
-        shipped_china: products.filter((p) => getShippingStatus(p) === 'shipped_china').length,
-        arrived_egy: products.filter((p) => getShippingStatus(p) === 'arrived_egy').length,
-    };
+            // Price filter (EGP)
+            const priceEgp = parseFloat(p.price_chi) * parseFloat(p.rate);
+            if (minPrice && priceEgp < parseFloat(minPrice)) return false;
+            if (maxPrice && priceEgp > parseFloat(maxPrice)) return false;
+
+            // Stock filter
+            if (stockFilter !== 'all') {
+                const count = parseInt(p.count) || 0;
+                if (stockFilter === 'out_of_stock' && count !== 0) return false;
+                if (stockFilter === 'low_stock' && (count === 0 || count > 3)) return false;
+                if (stockFilter === 'in_stock' && count <= 3) return false;
+            }
+
+            return true;
+        });
+
+        // Sort
+        if (sortBy === 'name') {
+            result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        } else if (sortBy === 'price_asc') {
+            result = [...result].sort(
+                (a, b) =>
+                    parseFloat(a.price_chi) * parseFloat(a.rate) -
+                    parseFloat(b.price_chi) * parseFloat(b.rate)
+            );
+        } else if (sortBy === 'price_desc') {
+            result = [...result].sort(
+                (a, b) =>
+                    parseFloat(b.price_chi) * parseFloat(b.rate) -
+                    parseFloat(a.price_chi) * parseFloat(a.rate)
+            );
+        } else if (sortBy === 'profit') {
+            result = [...result].sort((a, b) => {
+                const calcA = calcAll(a);
+                const calcB = calcAll(b);
+                return calcB.profitPerPiece - calcA.profitPerPiece;
+            });
+        }
+
+        return result;
+    }, [products, searchTerm, shippingFilter, minPrice, maxPrice, stockFilter, sortBy]);
+
+    // // ✅ Shipping summary counts
+    // const shippingCounts = {
+    //     all: products.length,
+    //     pending: products.filter((p) => getShippingStatus(p) === 'pending').length,
+    //     shipped_china: products.filter((p) => getShippingStatus(p) === 'shipped_china').length,
+    //     arrived_egy: products.filter((p) => getShippingStatus(p) === 'arrived_egy').length,
+    // };
 
     const {
         currentPage,
@@ -344,64 +395,143 @@ export default function Products() {
             </div>
 
             {/* ✅ NEW: Shipping Filter Tabs */}
-            <div className="shipping-filter-tabs" style={{
-                display: 'flex',
-                gap: '8px',
-                padding: '12px 0',
-                flexWrap: 'wrap',
-            }}>
-                <button
-                    className={`shipping-filter-btn ${shippingFilter === 'all' ? 'active' : ''}`}
-                    onClick={() => setShippingFilter('all')}
-                    style={{
-                        padding: '8px 16px',
-                        borderRadius: '20px',
-                        border: shippingFilter === 'all' ? '2px solid #6366f1' : '2px solid rgba(255,255,255,0.1)',
-                        background: shippingFilter === 'all' ? 'rgba(99, 102, 241, 0.15)' : 'transparent',
-                        color: shippingFilter === 'all' ? '#6366f1' : '#888',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        fontSize: '13px',
-                        fontWeight: 600,
-                        transition: 'all 0.2s',
-                    }}
-                >
-                    <Filter size={14} />
-                    All ({shippingCounts.all})
-                </button>
-
-                {(Object.keys(shippingStatusConfig) as ShippingStatus[]).map((status) => {
-                    const config = shippingStatusConfig[status];
-                    const Icon = config.icon;
-                    const isActive = shippingFilter === status;
-
-                    return (
-                        <button
-                            key={status}
-                            className={`shipping-filter-btn ${isActive ? 'active' : ''}`}
-                            onClick={() => setShippingFilter(status)}
+            <div className="card" style={{ marginBottom: '16px', padding: '16px' }}>
+                <div style={{
+                    display: 'flex',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                }}>
+                    {/* Search */}
+                    <div style={{ position: 'relative', flex: '1', minWidth: '200px' }}>
+                        <Search
+                            size={16}
                             style={{
-                                padding: '8px 16px',
-                                borderRadius: '20px',
-                                border: `2px solid ${isActive ? config.color : 'rgba(255,255,255,0.1)'}`,
-                                background: isActive ? config.bg : 'transparent',
-                                color: isActive ? config.color : '#888',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                fontSize: '13px',
-                                fontWeight: 600,
-                                transition: 'all 0.2s',
+                                position: 'absolute',
+                                left: '12px',
+                                top: '50%',
+                                transform: 'translateY(-50%)',
+                                color: '#888',
                             }}
+                        />
+                        <input
+                            type="text"
+                            placeholder="Search products..."
+                            className="search-input"
+                            style={{ paddingLeft: '36px', width: '100%' }}
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Min Price */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <DollarSign size={14} style={{ color: '#888' }} />
+                        <input
+                            type="number"
+                            placeholder="Min EGP"
+                            className="search-input"
+                            style={{ width: '110px' }}
+                            value={minPrice}
+                            onChange={(e) => setMinPrice(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Max Price */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: '#888' }}>—</span>
+                        <input
+                            type="number"
+                            placeholder="Max EGP"
+                            className="search-input"
+                            style={{ width: '110px' }}
+                            value={maxPrice}
+                            onChange={(e) => setMaxPrice(e.target.value)}
+                        />
+                    </div>
+
+                    {/* Stock Filter */}
+                    <select
+                        title='Select'
+                        value={stockFilter}
+                        onChange={(e) => setStockFilter(e.target.value as typeof stockFilter)}
+                        className="search-input"
+                        style={{ minWidth: '140px' }}
+                    >
+                        <option value="all">All Stock</option>
+                        <option value="in_stock">In Stock</option>
+                        <option value="low_stock">Low Stock</option>
+                        <option value="out_of_stock">Out of Stock</option>
+                    </select>
+
+                    {/* Sort */}
+                    <select
+                        title='Select'
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                        className="search-input"
+                        style={{ minWidth: '160px' }}
+                    >
+                        <option value="date">Sort by Date</option>
+                        <option value="name">Sort by Name</option>
+                        <option value="price_asc">Price: Low → High</option>
+                        <option value="price_desc">Price: High → Low</option>
+                        <option value="profit">Sort by Profit</option>
+                    </select>
+
+                    {/* Clear All Filters */}
+                    {(searchTerm || minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date' || shippingFilter !== 'all') && (
+                        <button
+                            className="btn btn-sm"
+                            onClick={() => {
+                                setSearchTerm('');
+                                setMinPrice('');
+                                setMaxPrice('');
+                                setStockFilter('all');
+                                setSortBy('date');
+                                setShippingFilter('all');
+                            }}
+                            style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
-                            <Icon size={14} />
-                            {config.label} ({shippingCounts[status]})
+                            <X size={14} /> Clear All
                         </button>
-                    );
-                })}
+                    )}
+                </div>
+
+                {/* Active filter count */}
+                {(minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date') && (
+                    <div style={{
+                        marginTop: '8px',
+                        fontSize: '12px',
+                        color: '#888',
+                        display: 'flex',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                    }}>
+                        <Filter size={12} />
+                        <span>Showing {filteredProducts.length} of {products.length} products</span>
+                        {minPrice && (
+                            <span style={{
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: 'rgba(99,102,241,0.1)',
+                                color: '#6366f1',
+                            }}>
+                                Min: {minPrice} EGP
+                            </span>
+                        )}
+                        {maxPrice && (
+                            <span style={{
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: 'rgba(99,102,241,0.1)',
+                                color: '#6366f1',
+                            }}>
+                                Max: {maxPrice} EGP
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* ✅ Product Cards */}
@@ -422,6 +552,14 @@ export default function Products() {
                             <div className="product-card-header">
                                 <div className="product-icon"><Package size={22} /></div>
                                 <div className="customer-card-actions">
+                                    <button
+                                        type="button"
+                                        title="Price History"
+                                        className="btn-icon"
+                                        onClick={() => navigate(`/product-history?product=${p.$id}`)}
+                                    >
+                                        <History size={15} />
+                                    </button>
                                     <button type="button" title="edit" className="btn-icon" onClick={() => openEdit(p)}><Edit size={15} /></button>
                                     <button type="button" title="delete" className="btn-icon danger" onClick={() => handleDelete(p.$id)}><Trash2 size={15} /></button>
                                 </div>
@@ -771,6 +909,13 @@ export default function Products() {
                                             ) : '—'}
                                         </td>
                                         <td className="actions">
+                                            <button
+                                                className="btn-icon"
+                                                onClick={() => navigate(`/product-history?product=${p.$id}`)}
+                                                title="Price History"
+                                            >
+                                                <History size={16} />
+                                            </button>
                                             <button className="btn-icon" onClick={() => startInlineEdit(p)} title="Set shipping & sold">
                                                 <Truck size={16} />
                                             </button>
@@ -830,23 +975,23 @@ export default function Products() {
                         </div>
                         <form onSubmit={handleSubmit}>
                             <div className="form-group">
-                                <label><Package size={14} /> Product Name *</label>
+                                <label className='flex! flex-row! items-center gap-2'><Package size={14} /> Product Name *</label>
                                 <input required placeholder="Product name" value={form.name}
                                     onChange={(e) => setForm({ ...form, name: e.target.value })} />
                             </div>
                             <div className="form-group">
-                                <label><Hash size={14} /> Count *</label>
+                                <label className='flex! flex-row! items-center gap-2'><Hash size={14} /> Count *</label>
                                 <input required placeholder="Quantity" value={form.count}
                                     onChange={(e) => setForm({ ...form, count: e.target.value })} />
                             </div>
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label><DollarSign size={14} /> Price (CNY) *</label>
+                                    <label className='flex! flex-row! items-center gap-2'><DollarSign size={14} /> Price (CNY) *</label>
                                     <input required placeholder="Chinese price" value={form.price_chi}
                                         onChange={(e) => setForm({ ...form, price_chi: e.target.value })} />
                                 </div>
                                 <div className="form-group">
-                                    <label><TrendingUp size={14} /> Rate *</label>
+                                    <label className='flex! flex-row! items-center gap-2'><TrendingUp size={14} /> Rate *</label>
                                     <input required placeholder="Exchange rate" value={form.rate}
                                         onChange={(e) => setForm({ ...form, rate: e.target.value })} />
                                 </div>
@@ -865,12 +1010,12 @@ export default function Products() {
 
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label><DollarSign size={14} /> Total Order (EGP)</label>
+                                    <label className='flex! flex-row! items-center gap-2'><DollarSign size={14} /> Total Order (EGP)</label>
                                     <input placeholder="Total order price" value={form.total_order}
                                         onChange={(e) => setForm({ ...form, total_order: e.target.value })} />
                                 </div>
                                 <div className="form-group">
-                                    <label><Truck size={14} /> Total Shipping (EGP)</label>
+                                    <label className='flex! flex-row! items-center gap-2'><Truck size={14} /> Total Shipping (EGP)</label>
                                     <input placeholder="Total shipping cost" value={form.total_shipping}
                                         onChange={(e) => setForm({ ...form, total_shipping: e.target.value })} />
                                 </div>
@@ -878,7 +1023,7 @@ export default function Products() {
 
                             {form.total_order && form.total_shipping && form.price_chi && form.rate && (
                                 <div className="calc-preview">
-                                    <span><Truck size={14} /> Shipping/piece:</span>
+                                    <span className='flex! flex-row! items-center gap-2'><Truck size={14} /> Shipping/piece:</span>
                                     <strong>
                                         {(() => {
                                             const priceEgp = parseFloat(form.price_chi) * parseFloat(form.rate);
@@ -892,7 +1037,7 @@ export default function Products() {
                             )}
 
                             <div className="form-group">
-                                <label><Tag size={14} /> Sold Price per piece (EGP)</label>
+                                <label className='flex! flex-row! items-center gap-2'><Tag size={14} /> Sold Price per piece (EGP)</label>
                                 <input placeholder="What you sold each piece for" value={form.sold_price}
                                     onChange={(e) => setForm({ ...form, sold_price: e.target.value })} />
                             </div>
@@ -919,7 +1064,7 @@ export default function Products() {
                                             </div>
                                             {shippingPerPiece > 0 && (
                                                 <div className="profit-preview-row">
-                                                    <span><Truck size={12} /> Shipping/piece:</span>
+                                                    <span className='flex! flex-row! items-center gap-2'><Truck size={12} /> Shipping/piece:</span>
                                                     <span>{shippingPerPiece.toFixed(2)} EGP</span>
                                                 </div>
                                             )}
@@ -928,11 +1073,11 @@ export default function Products() {
                                                 <span><strong>{totalCostPerPiece.toFixed(2)} EGP</strong></span>
                                             </div>
                                             <div className="profit-preview-row">
-                                                <span><Tag size={12} /> Sold/piece:</span>
+                                                <span className='flex! flex-row! items-center gap-2'><Tag size={12} /> Sold/piece:</span>
                                                 <span>{soldPrice.toFixed(2)} EGP</span>
                                             </div>
                                             <div className={`profit-preview-row profit-preview-total ${profitPerPiece >= 0 ? 'profit-positive' : 'profit-negative'}`}>
-                                                <span><TrendingUp size={12} /> Profit/piece:</span>
+                                                <span className='flex! flex-row! items-center gap-2'><TrendingUp size={12} /> Profit/piece:</span>
                                                 <strong>{profitPerPiece.toFixed(2)} EGP</strong>
                                             </div>
                                             {count > 1 && (
@@ -949,13 +1094,7 @@ export default function Products() {
                             {/* ✅ NEW: Shipping Status in Modal */}
                             <div className="form-divider"><span>Shipping Status</span></div>
 
-                            <div style={{
-                                display: 'flex',
-                                gap: '16px',
-                                padding: '12px',
-                                borderRadius: '10px',
-                                background: 'rgba(255,255,255,0.03)',
-                            }}>
+                            <div className='flex flex-col items-start gap-4 p-3 rounded-lg' >
                                 <label style={{
                                     display: 'flex',
                                     alignItems: 'center',
