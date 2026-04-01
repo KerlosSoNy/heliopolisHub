@@ -160,3 +160,60 @@ export interface ProductHistory {
 }
 
 export type ProductHistoryForm = Omit<ProductHistory, '$id' | '$createdAt' | '$updatedAt'>;
+
+
+export interface CurrencyRate {
+    $id: string;
+    $createdAt: string;
+    from_currency: string;
+    to_currency: string;
+    rate: number;
+    source: string; // 'auto' | 'manual'
+    note: string;
+}
+
+export interface CurrencyRateForm {
+    from_currency: string;
+    to_currency: string;
+    rate: number;
+    source: string;
+    note: string;
+}
+
+
+export interface Return {
+    $id: string;
+    $createdAt: string;
+    $updatedAt: string;
+    product_id: string;
+    product_name: string;
+    order_id: string;
+    client: string;
+    quantity: number;
+    reason: string;
+    reason_category: string; // 'defective' | 'wrong_item' | 'not_as_described' | 'changed_mind' | 'damaged_shipping' | 'other'
+    status: string; // 'pending' | 'approved' | 'rejected' | 'refunded' | 'replaced'
+    refund_amount: number;
+    original_price: number;
+    action: string; // 'refund' | 'replace' | 'store_credit' | 'none'
+    restock: boolean;
+    note: string;
+    resolved_at: string;
+}
+
+export interface ReturnForm {
+    product_id: string;
+    product_name: string;
+    order_id: string;
+    client: string;
+    quantity: number | string;
+    reason: string;
+    reason_category: string;
+    status: string;
+    refund_amount: number | string;
+    original_price: number | string;
+    action: string;
+    restock: boolean;
+    note: string;
+    resolved_at: string;
+}

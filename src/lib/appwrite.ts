@@ -19,7 +19,9 @@ export const COLLECTIONS = {
     ADDITIONAL: 'additional',
     SHIPMENTS: 'shipments',
     TRANSACTIONS: 'transactions', 
-    PRODUCT_HISTORY: 'product_history', 
+    PRODUCT_HISTORY: 'product_history',
+    CURRENCY_RATES: 'currency_rates', 
+    RETURNS: 'returns',
 };
 
 export { ID, Query };

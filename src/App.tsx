@@ -9,6 +9,7 @@ import {
   ShieldIcon,
   DollarSign,
   History,
+  RotateCcw,
 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
@@ -23,6 +24,8 @@ import ShipmentDetail from './pages/ShipmentDetail';
 import OrderDetail from './pages/OrderDetail';
 import Transactions from './pages/Transactions';
 import ProductHistoryPage from './pages/ProductHistory';
+import CurrencyTracker from './pages/CurrencyTracker';
+import Returns from './services/Returns';
 
 function AppLayout() {
   const { user, logout } = useAuth();
@@ -54,10 +57,17 @@ function AppLayout() {
           <NavLink to="/transactions">
             <DollarSign size={18} /> Transactions
           </NavLink>
+          <NavLink to="/currency">
+            <DollarSign size={18} />
+            <span>Currency Rate</span>
+          </NavLink>
+          <NavLink to="/returns">
+            <RotateCcw size={18} />
+            <span>Returns</span>
+          </NavLink>
           <NavLink to="/product-history">
             <History size={18} /> Product History
           </NavLink>
-
         </nav>
 
         <div className="sidebar-footer">
@@ -87,7 +97,9 @@ function AppLayout() {
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/shipments/:id" element={<ShipmentDetail />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/currency" element={<CurrencyTracker />} />
           <Route path="/product-history" element={<ProductHistoryPage />} />
+          <Route path="/returns" element={<Returns />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

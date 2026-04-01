@@ -81,7 +81,8 @@ export default function Products() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [form, setForm] = useState<ProductForm>(emptyForm);
     const [searchTerm, setSearchTerm] = useState('');
-    const [shippingFilter, setShippingFilter] = useState<ShippingFilter>('all'); // ✅ NEW
+    const [shippingFilter, setShippingFilter] = useState<ShippingFilter>('all');
+    const [customerFilter, setCustomerFilter] = useState<string>('all'); // ✅ NEW
     const [minPrice, setMinPrice] = useState('');
     const [maxPrice, setMaxPrice] = useState('');
     const [sortBy, setSortBy] = useState<'name' | 'price_asc' | 'price_desc' | 'date' | 'profit'>('date');
@@ -100,7 +101,6 @@ export default function Products() {
         try {
             const newValue = !product.shipped_china;
             await productService.toggleShippedChina(product.$id, newValue);
-            // If un-checking shipped_china, also un-check shipped_egy
             if (!newValue && product.shipped_egy) {
                 await productService.toggleShippedEgy(product.$id, false);
             }
@@ -114,7 +114,6 @@ export default function Products() {
         try {
             const newValue = !product.shipped_egy;
             await productService.toggleShippedEgy(product.$id, newValue);
-            // If checking shipped_egy, also ensure shipped_china is checked
             if (newValue && !product.shipped_china) {
                 await productService.toggleShippedChina(product.$id, true);
             }
@@ -240,6 +239,7 @@ export default function Products() {
             totalProfit: profitPerPiece * count,
         };
     };
+
     const navigate = useNavigate();
 
     const getOrderForProduct = (product: Product): Order | undefined => {
@@ -247,7 +247,31 @@ export default function Products() {
         return orders.find((o) => o.$id === product.order_id);
     };
 
-    // ✅ Filter by search AND shipping status
+    // ✅ NEW: Get unique customer names from orders linked to products
+    const uniqueCustomers = useMemo(() => {
+        const customerSet = new Set<string>();
+        products.forEach((p) => {
+            if (p.order_id) {
+                const order = orders.find((o) => o.$id === p.order_id);
+                if (order?.client) {
+                    customerSet.add(order.client);
+                }
+            }
+        });
+        return Array.from(customerSet).sort();
+    }, [products, orders]);
+
+    // ✅ NEW: Shipping status counts
+    const shippingCounts = useMemo(() => {
+        return {
+            all: products.length,
+            pending: products.filter((p) => getShippingStatus(p) === 'pending').length,
+            shipped_china: products.filter((p) => getShippingStatus(p) === 'shipped_china').length,
+            arrived_egy: products.filter((p) => getShippingStatus(p) === 'arrived_egy').length,
+        };
+    }, [products]);
+
+    // ✅ Filter by search, shipping status, AND customer
     const filteredProducts = useMemo(() => {
         let result = products.filter((p) => {
             // Search filter
@@ -256,6 +280,12 @@ export default function Products() {
 
             // Shipping filter
             if (shippingFilter !== 'all' && getShippingStatus(p) !== shippingFilter) return false;
+
+            // ✅ NEW: Customer filter
+            if (customerFilter !== 'all') {
+                const clientName = getClientName(p);
+                if (clientName !== customerFilter) return false;
+            }
 
             // Price filter (EGP)
             const priceEgp = parseFloat(p.price_chi) * parseFloat(p.rate);
@@ -297,15 +327,7 @@ export default function Products() {
         }
 
         return result;
-    }, [products, searchTerm, shippingFilter, minPrice, maxPrice, stockFilter, sortBy]);
-
-    // // ✅ Shipping summary counts
-    // const shippingCounts = {
-    //     all: products.length,
-    //     pending: products.filter((p) => getShippingStatus(p) === 'pending').length,
-    //     shipped_china: products.filter((p) => getShippingStatus(p) === 'shipped_china').length,
-    //     arrived_egy: products.filter((p) => getShippingStatus(p) === 'arrived_egy').length,
-    // };
+    }, [products, searchTerm, shippingFilter, customerFilter, minPrice, maxPrice, stockFilter, sortBy]);
 
     const {
         currentPage,
@@ -358,7 +380,7 @@ export default function Products() {
                 </div>
             </div>
 
-            {/* ✅ Summary Stats */}
+            {/* ✅ Summary Stats with Shipping Counts */}
             <div className="stat-grid">
                 <div className="stat-card">
                     <div className="stat-icon blue"><Package size={24} /></div>
@@ -392,9 +414,38 @@ export default function Products() {
                         </p>
                     </div>
                 </div>
+
+                {/* ✅ NEW: Shipping Count Cards */}
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                        <Package size={24} />
+                    </div>
+                    <div>
+                        <p className="stat-label">In China</p>
+                        <p className="stat-value" style={{ color: '#f59e0b' }}>{shippingCounts.pending}</p>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6' }}>
+                        <Plane size={24} />
+                    </div>
+                    <div>
+                        <p className="stat-label">Shipped from China</p>
+                        <p className="stat-value" style={{ color: '#3b82f6' }}>{shippingCounts.shipped_china}</p>
+                    </div>
+                </div>
+                <div className="stat-card">
+                    <div className="stat-icon" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                        <MapPin size={24} />
+                    </div>
+                    <div>
+                        <p className="stat-label">Arrived in Egypt</p>
+                        <p className="stat-value" style={{ color: '#10b981' }}>{shippingCounts.arrived_egy}</p>
+                    </div>
+                </div>
             </div>
 
-            {/* ✅ NEW: Shipping Filter Tabs */}
+            {/* ✅ Filter Bar with Customer & Shipping Filters */}
             <div className="card" style={{ marginBottom: '16px', padding: '16px' }}>
                 <div style={{
                     display: 'flex',
@@ -423,6 +474,34 @@ export default function Products() {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+
+                    {/* ✅ NEW: Customer Filter */}
+                    <select
+                        title="Filter by Customer"
+                        value={customerFilter}
+                        onChange={(e) => setCustomerFilter(e.target.value)}
+                        className="search-input"
+                        style={{ minWidth: '160px' }}
+                    >
+                        <option value="all">All Customers</option>
+                        {uniqueCustomers.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </select>
+
+                    {/* ✅ NEW: Shipping Status Filter with Counts */}
+                    <select
+                        title="Filter by Shipping"
+                        value={shippingFilter}
+                        onChange={(e) => setShippingFilter(e.target.value as ShippingFilter)}
+                        className="search-input"
+                        style={{ minWidth: '200px' }}
+                    >
+                        <option value="all">All Shipping ({shippingCounts.all})</option>
+                        <option value="pending">📦 In China ({shippingCounts.pending})</option>
+                        <option value="shipped_china">✈️ Shipped from China ({shippingCounts.shipped_china})</option>
+                        <option value="arrived_egy">📍 Arrived in Egypt ({shippingCounts.arrived_egy})</option>
+                    </select>
 
                     {/* Min Price */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -480,7 +559,7 @@ export default function Products() {
                     </select>
 
                     {/* Clear All Filters */}
-                    {(searchTerm || minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date' || shippingFilter !== 'all') && (
+                    {(searchTerm || minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date' || shippingFilter !== 'all' || customerFilter !== 'all') && (
                         <button
                             className="btn btn-sm"
                             onClick={() => {
@@ -490,6 +569,7 @@ export default function Products() {
                                 setStockFilter('all');
                                 setSortBy('date');
                                 setShippingFilter('all');
+                                setCustomerFilter('all'); // ✅ NEW
                             }}
                             style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
                         >
@@ -499,7 +579,7 @@ export default function Products() {
                 </div>
 
                 {/* Active filter count */}
-                {(minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date') && (
+                {(minPrice || maxPrice || stockFilter !== 'all' || sortBy !== 'date' || customerFilter !== 'all' || shippingFilter !== 'all') && (
                     <div style={{
                         marginTop: '8px',
                         fontSize: '12px',
@@ -507,9 +587,30 @@ export default function Products() {
                         display: 'flex',
                         gap: '8px',
                         flexWrap: 'wrap',
+                        alignItems: 'center',
                     }}>
                         <Filter size={12} />
                         <span>Showing {filteredProducts.length} of {products.length} products</span>
+                        {customerFilter !== 'all' && (
+                            <span style={{
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: 'rgba(99,102,241,0.1)',
+                                color: '#6366f1',
+                            }}>
+                                Customer: {customerFilter}
+                            </span>
+                        )}
+                        {shippingFilter !== 'all' && (
+                            <span style={{
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                background: shippingStatusConfig[shippingFilter].bg,
+                                color: shippingStatusConfig[shippingFilter].color,
+                            }}>
+                                {shippingStatusConfig[shippingFilter].label}
+                            </span>
+                        )}
                         {minPrice && (
                             <span style={{
                                 padding: '2px 8px',
@@ -579,7 +680,7 @@ export default function Products() {
                                 </div>
                             )}
 
-                            {/* ✅ NEW: Shipping Status Badge */}
+                            {/* Shipping Status Badge */}
                             <div style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -597,7 +698,7 @@ export default function Products() {
                                 {shipConfig.label}
                             </div>
 
-                            {/* ✅ NEW: Shipping Toggle Switches */}
+                            {/* Shipping Toggle Switches */}
                             <div style={{
                                 display: 'flex',
                                 flexDirection: 'column',
@@ -841,7 +942,6 @@ export default function Products() {
                                                 <span className="text-muted">—</span>
                                             )}
                                         </td>
-                                        {/* ✅ NEW: Shipping Status Column */}
                                         <td>
                                             <div style={{
                                                 display: 'inline-flex',
@@ -1091,10 +1191,10 @@ export default function Products() {
                                 })()
                             )}
 
-                            {/* ✅ NEW: Shipping Status in Modal */}
+                            {/* Shipping Status in Modal */}
                             <div className="form-divider"><span>Shipping Status</span></div>
 
-                            <div className='flex flex-col items-start gap-4 p-3 rounded-lg' >
+                            <div className='flex flex-col items-start gap-4 p-3 rounded-lg'>
                                 <label style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -1116,7 +1216,6 @@ export default function Products() {
                                             setForm({
                                                 ...form,
                                                 shipped_china: checked,
-                                                // If unchecked, also uncheck Egypt
                                                 shipped_egy: checked ? form.shipped_egy : false,
                                             });
                                         }}
@@ -1147,7 +1246,6 @@ export default function Products() {
                                             setForm({
                                                 ...form,
                                                 shipped_egy: checked,
-                                                // If checked, also check China
                                                 shipped_china: checked ? true : form.shipped_china,
                                             });
                                         }}
