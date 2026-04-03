@@ -27,7 +27,7 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: 
 }
 
 .sidebar {
-  width: 240px;
+  width: 280px;
   background: #1a1a2e;
   color: white;
   padding: 20px 0;
@@ -72,9 +72,24 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: 
   margin-bottom: 20px;
 }
 
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start; /* or center, depending on your design */
+    gap: 10px; /* optional: adds spacing between items */
+  }
+}
+
 .page-header h1 { margin-bottom: 0; }
 .header-actions { display: flex; gap: 10px; align-items: center; }
 
+@media (max-width: 768px) {
+  .header-actions {
+    flex-direction: column;
+    align-items: stretch; /* makes buttons full width */
+    width: 100%;
+  }
+}
 /* ========== STAT CARDS ========== */
 .stat-grid {
   display: grid;
@@ -109,6 +124,8 @@ body { font-family: 'Inter', system-ui, sans-serif; background: #f0f2f5; color: 
 
 /* ========== CARD & TABLE ========== */
 .card {
+  overflow-x: auto;
+  max-width: 100%;
   background: white;
   border-radius: 12px;
   padding: 20px;

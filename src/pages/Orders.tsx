@@ -638,7 +638,9 @@ export default function Orders() {
             </div>
 
             {/* Order Cards */}
-            <div className="order-grid">
+            <div className="flex flex-row items-center gap-4 max-w-full! overflow-x-auto! py-5! my-5!">
+
+                {/* <div className="order-grid"> */}
                 {filteredOrders.map((o) => {
                     const paid = isPaid(o);
                     const depUsed = parseFloat(o.deposite || '0');
@@ -646,7 +648,7 @@ export default function Orders() {
                     const discountAmt = parseFloat(o.discount || '0');   // ← NEW
 
                     return (
-                        <div key={o.$id} className={`order-card ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
+                        <div key={o.$id} className={`order-card shrink-0 min-w-75 ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
                             <div className="order-card-header">
                                 <div className="order-id">#{o.$id.slice(0, 8)}</div>
                                 <div className="customer-card-actions">

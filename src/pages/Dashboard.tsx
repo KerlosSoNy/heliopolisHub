@@ -86,9 +86,9 @@ export default function Dashboard() {
             </div>
 
             {/* Recent Orders */}
-            <div className="card">
+            <div className="card max-w-full! w-full overflow-x-auto!">
                 <h2>Recent Orders</h2>
-                <table>
+                <table className=''>
                     <thead>
                         <tr>
                             <th>Order ID</th>
@@ -101,11 +101,11 @@ export default function Dashboard() {
                     <tbody>
                         {recentOrders.map((order) => (
                             <tr key={order.$id}>
-                                <td>{order.$id.slice(0, 8)}...</td>
-                                <td>{order.client}</td>
-                                <td>{order.products?.length || 'N/A'}</td>
-                                <td>{order.price_egp} EGP</td>
-                                <td>{new Date(order.$createdAt).toLocaleDateString()}</td>
+                                <td className='shrink-0 min-w-30'>{order.$id.slice(0, 8)}...</td>
+                                <td className='shrink-0 min-w-30'>{order.client}</td>
+                                <td className='shrink-0 min-w-35'>{order.products?.length || 'N/A'}</td>
+                                <td className='shrink-0 min-w-30'>{order.price_egp} EGP</td>
+                                <td className='shrink-0 min-w-30'>{new Date(order.$createdAt).toLocaleDateString()}</td>
                             </tr>
                         ))}
                         {recentOrders.length === 0 && (
