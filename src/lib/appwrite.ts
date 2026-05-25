@@ -13,6 +13,7 @@ export const BUCKET_ID = 'receipts';
 
 export const COLLECTIONS = {
     CUSTOMERS: 'customers',
+    CUSTOMER_ORDERS: 'customer_orders', 
     ORDERS: 'orders',
     PRODUCTS: 'products',
     DEPOSIT_HISTORY: 'deposit_history',
