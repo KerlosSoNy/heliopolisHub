@@ -17,6 +17,8 @@ import Sidebar from './components/Sidebar';
 import CreateCustomerOrder from './pages/CreateCustomerOrder';
 import CustomerOrders from './pages/customerOrders';
 import EditCustomerOrder from './pages/CustomerOrderEdit';
+import WebsiteProducts from './pages/WebsiteProducts';
+import WebsiteCategories from './pages/WebsiteCategories';
 
 function AppLayout() {
   return (
@@ -29,17 +31,19 @@ function AppLayout() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
-          <Route path="/orders/create" element={<CreateCustomerOrder />} />
-          <Route path="/products" element={<Products />} />
           <Route path="/additional" element={<AdditionalPage />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/customer-orders" element={<CustomerOrders />} />
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/orders/:id/edit" element={<EditCustomerOrder />} />
+          <Route path="/orders/create" element={<CreateCustomerOrder />} />
           <Route path="/shipments/:id" element={<ShipmentDetail />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/currency" element={<CurrencyTracker />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/categories" element={<WebsiteCategories />} />
+          <Route path="/website-products" element={<WebsiteProducts />} />
           <Route path="/product-history" element={<ProductHistoryPage />} />
           <Route path="/returns" element={<Returns />} />
           <Route path="*" element={<Navigate to="/" replace />} />

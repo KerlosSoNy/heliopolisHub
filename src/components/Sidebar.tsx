@@ -13,13 +13,13 @@ import {
     RotateCcw,
     Menu,
     X,
+    CassetteTapeIcon,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const navItems = [
     { to: '/', icon: LayoutDashboard, label: 'Overview', end: true },
     { to: '/customers', icon: Users, label: 'Customers' },
-    { to: '/products', icon: Package, label: 'Products' },
     { to: '/additional', icon: Plus, label: 'Additionals' },
     { to: '/shipments', icon: ShieldIcon, label: 'Shipments' },
     { to: '/orders', icon: ShoppingCart, label: 'Hub Orders' },
@@ -27,6 +27,9 @@ const navItems = [
     { to: '/transactions', icon: DollarSign, label: 'Transactions' },
     { to: '/currency', icon: DollarSign, label: 'Currency Rate' },
     { to: '/returns', icon: RotateCcw, label: 'Returns' },
+    { to: '/categories', icon: CassetteTapeIcon, label: 'Categories' },
+    { to: '/products', icon: Package, label: 'Products' },
+    { to: '/website-products', icon: Package, label: 'Website Products' },
     { to: '/product-history', icon: History, label: 'Product History' },
 ];
 
@@ -106,8 +109,8 @@ export default function Sidebar() {
                             onClick={handleNavClick}
                             className={({ isActive }) =>
                                 `flex items-center gap-2.5 px-4! py-2.5! rounded-lg text-sm
-                 no-underline transition-all duration-200
-                 ${isActive
+                            no-underline transition-all duration-200
+                            ${isActive
                                     ? 'bg-[#6c63ff] text-white shadow-md shadow-[#6c63ff]/30 font-medium'
                                     : 'text-white/70 hover:bg-white/10 hover:text-white'
                                 }`

@@ -23,6 +23,8 @@ export const COLLECTIONS = {
     PRODUCT_HISTORY: 'product_history',
     CURRENCY_RATES: 'currency_rates', 
     RETURNS: 'returns',
+    WEBSITE_PRODUCTS: 'website-products',
+    WEBSITE_CATEGORIES: 'website_categories',
 };
 
 export { ID, Query };

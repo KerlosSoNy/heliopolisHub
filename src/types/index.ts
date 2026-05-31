@@ -201,6 +201,7 @@ export interface Return {
     resolved_at: string;
 }
 
+
 export interface ReturnForm {
     product_id: string;
     product_name: string;
@@ -217,3 +218,35 @@ export interface ReturnForm {
     note: string;
     resolved_at: string;
 }
+
+
+export type WebsiteCategory = {
+    $id: string;
+    $createdAt: string;
+    $updatedAt: string;
+    name: string;
+    description: string;
+    image_id: string;
+    icon: string;
+    slug: string;
+    status: 'active' | 'inactive';
+};
+
+export type WebsiteCategoryForm = Omit<WebsiteCategory, '$id' | '$createdAt' | '$updatedAt'>;
+
+export type WebsiteProduct = {
+    $id: string;
+    $createdAt: string;
+    $updatedAt: string;
+    name: string;
+    description: string;
+    price: string;
+    image_id: string;
+    category_id: string;
+    stock: string;
+    sku: string;
+    featured: boolean;
+    status: 'active' | 'inactive';
+};
+
+export type WebsiteProductForm = Omit<WebsiteProduct, '$id' | '$createdAt' | '$updatedAt'>;
