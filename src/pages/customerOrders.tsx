@@ -62,7 +62,6 @@ export default function CustomerOrders() {
 
     if (loading) return <div className="loading">Loading orders...</div>;
     if (error) return <div className="error">Error: {error}</div>;
-
     return (
         <div className="page">
             <div className="page-header">
@@ -133,6 +132,7 @@ export default function CustomerOrders() {
                                 <th>Customer</th>
                                 <th>Products</th>
                                 <th>Total Amount</th>
+                                <th>DownPayment</th>
                                 <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
@@ -170,6 +170,12 @@ export default function CustomerOrders() {
                                                 {parseFloat(order.price_egp || '0').toFixed(2)} EGP
                                             </strong>
                                         </td>
+                                        <td>
+                                            <strong className="text-black">
+                                                {parseFloat(order?.discount || '0').toFixed(2)} EGP
+                                            </strong>
+                                        </td>
+
                                         <td>
                                             <span
                                                 className={
