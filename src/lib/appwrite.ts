@@ -1,4 +1,4 @@
-import { Client, Account, ID, Query, Databases, Storage } from "appwrite";  // ✅ Added Storage
+import { Client, Account, ID, Query, Databases, Storage } from "appwrite";
 
 const client = new Client()
     .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT)

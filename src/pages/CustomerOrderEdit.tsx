@@ -433,14 +433,14 @@ export default function EditCustomerOrder() {
                 {/* ===== DISCOUNT SECTION ===== */}
                 {products.length > 0 && (
                     <div className="form-section">
-                        <h3>Apply Discount (Optional)</h3>
+                        <h3>Apply Downpayment (Optional)</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                             <div className="form-group">
-                                <label>
-                                    <Percent size={14} /> Discount Type
+                                <label className="flex! flex-row items-center gap-1">
+                                    <Percent size={14} /> Downpayment Type
                                 </label>
                                 <select
-                                    title="Discount Type"
+                                    title="Downpayment Type"
                                     value={discountType}
                                     onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
                                     className="form-input"
@@ -451,8 +451,8 @@ export default function EditCustomerOrder() {
                             </div>
 
                             <div className="form-group">
-                                <label>
-                                    <DollarSign size={14} /> Discount Value
+                                <label className="flex! flex-row items-center gap-1">
+                                    <DollarSign size={14} /> Downpayment Value
                                 </label>
                                 <input
                                     type="number"
@@ -480,8 +480,8 @@ export default function EditCustomerOrder() {
                             </div>
 
                             {discount > 0 && (
-                                <div className="summary-row text-danger">
-                                    <span>Discount:</span>
+                                <div className="summary-row text-danger flex! flex-row! items-center gap-2 ">
+                                    <span>Downpayment:</span>
                                     <strong>-{discount.toFixed(2)} EGP</strong>
                                 </div>
                             )}

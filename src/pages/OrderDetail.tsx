@@ -203,8 +203,8 @@ export default function OrderDetail() {
 
                         {discount > 0 && (
                             <div className="summary-row text-danger">
-                                <span>
-                                    <Percent size={14} /> Discount ({order.discount_type}):
+                                <span className="flex! flex-row items-center gap-1">
+                                    <Percent size={14} /> Downpayment ({order.discount_type}):
                                 </span>
                                 <strong>-{discount.toFixed(2)} EGP</strong>
                             </div>
