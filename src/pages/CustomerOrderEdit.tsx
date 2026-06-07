@@ -9,6 +9,7 @@ import type { Customer } from '../types';
 interface ManualProduct extends ProductData {
     id: string;
     profit?: number;
+    isDelivered?: boolean;
 }
 
 export default function EditCustomerOrder() {
@@ -27,7 +28,7 @@ export default function EditCustomerOrder() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
+    const [deliveryStatus, setDeliveryStatus] = useState<Record<string, boolean>>({});
     // Fetch order on mount
     useEffect(() => {
         const fetchOrder = async () => {
@@ -56,6 +57,11 @@ export default function EditCustomerOrder() {
                         id: `${idx}-${Date.now()}`,
                     }));
                     setProducts(productsWithIds);
+                    const newDeliveryStatus: Record<string, boolean> = {};
+                    productsWithIds.forEach(p => {
+                        newDeliveryStatus[p.id] = p.isDelivered || false;
+                    });
+                    setDeliveryStatus(newDeliveryStatus);
                 } catch (err) {
                     console.error('Error parsing products:', err);
                 }
@@ -88,6 +94,7 @@ export default function EditCustomerOrder() {
             costPrice: '',
             sellingPrice: '',
             quantity: '1',
+            isDelivered: false,
         };
         setProducts([...products, newProduct]);
     };
@@ -187,6 +194,7 @@ export default function EditCustomerOrder() {
                 costPrice: p.costPrice,
                 sellingPrice: p.sellingPrice,
                 quantity: p.quantity,
+                isDelivered: deliveryStatus[p.id] || false,
             }));
 
             // Prepare data for order service
@@ -312,6 +320,7 @@ export default function EditCustomerOrder() {
                                     <div className="col-selling">Price/Unit</div>
                                     <div className="col-qty">Qty</div>
                                     <div className="col-total">Total</div>
+                                    <div className="col-delivered">Delivered</div>
                                     <div className="col-action">Action</div>
                                 </div>
 
@@ -402,7 +411,23 @@ export default function EditCustomerOrder() {
                                                     </small>
                                                 </div>
                                             </div>
-
+                                            <div className="col-delivered">
+                                                <label className="checkbox-label">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={deliveryStatus[product.id] || false}
+                                                        onChange={(e) => {
+                                                            setDeliveryStatus(prev => ({
+                                                                ...prev,
+                                                                [product.id]: e.target.checked
+                                                            }));
+                                                            updateProduct(product.id, 'isDelivered', e.target.checked ? 'true' : 'false');
+                                                        }}
+                                                        className="form-checkbox"
+                                                    />
+                                                    Delivered
+                                                </label>
+                                            </div>
                                             <div className="col-action">
                                                 <button
                                                     type="button"

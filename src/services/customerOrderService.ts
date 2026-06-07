@@ -6,6 +6,7 @@ export interface ProductData {
   costPrice: string;
   sellingPrice: string;
   quantity: string;
+   isDelivered?: boolean;
 }
 
 export interface CustomerOrderForm {
