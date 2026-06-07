@@ -6,8 +6,7 @@ import Products from './pages/Products';
 import Orders from './pages/Orders';
 import Login from './pages/Login';
 import AdditionalPage from './pages/Additional';
-import Shipments from './pages/Shipments';
-import ShipmentDetail from './pages/ShipmentDetail';
+import Shipments from './pages/shipments/Shipments';
 import OrderDetail from './pages/OrderDetail';
 import Transactions from './pages/Transactions';
 import ProductHistoryPage from './pages/ProductHistory';
@@ -19,6 +18,8 @@ import CustomerOrders from './pages/customerOrders';
 import EditCustomerOrder from './pages/CustomerOrderEdit';
 import WebsiteProducts from './pages/WebsiteProducts';
 import WebsiteCategories from './pages/WebsiteCategories';
+import CreateEditShipment from './pages/shipments/createShipments';
+import ViewShipment from './pages/shipments/viewShipments';
 
 function AppLayout() {
   return (
@@ -38,7 +39,12 @@ function AppLayout() {
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/orders/:id/edit" element={<EditCustomerOrder />} />
           <Route path="/orders/create" element={<CreateCustomerOrder />} />
-          <Route path="/shipments/:id" element={<ShipmentDetail />} />
+          <Route path="/shipments" element={<Shipments />} />
+          <Route path="/shipments/create" element={<CreateEditShipment />} />
+          <Route path="/shipments/:id" element={<ViewShipment />} />
+          <Route path="/shipments/:id/edit" element={<CreateEditShipment />} />
+
+
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/currency" element={<CurrencyTracker />} />
           <Route path="/products" element={<Products />} />
