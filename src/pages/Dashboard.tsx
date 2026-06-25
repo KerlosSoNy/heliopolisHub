@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Users, Package, ShoppingCart, DollarSign } from 'lucide-react';
 import { customerService } from '../services/customerService';
-import { productService } from '../services/productService';
-import { orderService } from '../services/orderService';
 import type { Order } from '../types';
 import { customerOrderService } from '../services/customerOrderService';
 
