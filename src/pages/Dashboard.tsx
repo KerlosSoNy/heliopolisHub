@@ -4,6 +4,7 @@ import { customerService } from '../services/customerService';
 import { productService } from '../services/productService';
 import { orderService } from '../services/orderService';
 import type { Order } from '../types';
+import { customerOrderService } from '../services/customerOrderService';
 
 interface Stats {
     customers: number;
@@ -27,9 +28,9 @@ export default function Dashboard() {
             try {
                 const [customers, products, orders, orderList] = await Promise.all([
                     customerService.count(),
-                    productService.count(),
-                    orderService.count(),
-                    orderService.listAll(),
+                    customerOrderService.count(),
+                    customerOrderService.count(),
+                    customerOrderService.listAll(),
                 ]);
 
                 const totalRevenue = orderList.reduce(
@@ -47,7 +48,6 @@ export default function Dashboard() {
         }
         fetchStats();
     }, []);
-
     if (loading) return <div className="loading">Loading dashboard...</div>;
 
     return (
@@ -93,8 +93,8 @@ export default function Dashboard() {
                         <tr>
                             <th>Order ID</th>
                             <th>Client</th>
-                            <th>Product Count</th>
-                            <th>Price (EGP)</th>
+                            <th>Residual (EGP)</th>
+                            <th>Deposite (EGP)</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -103,8 +103,8 @@ export default function Dashboard() {
                             <tr key={order.$id}>
                                 <td className='shrink-0 min-w-30'>{order.$id.slice(0, 8)}...</td>
                                 <td className='shrink-0 min-w-30'>{order.client}</td>
-                                <td className='shrink-0 min-w-35'>{order.products?.length || 'N/A'}</td>
-                                <td className='shrink-0 min-w-30'>{order.price_egp} EGP</td>
+                                <td className='shrink-0 min-w-35'>{order.price_egp || 'N/A'} EGP</td>
+                                <td className='shrink-0 min-w-30'>{order.discount} EGP</td>
                                 <td className='shrink-0 min-w-30'>{new Date(order.$createdAt).toLocaleDateString()}</td>
                             </tr>
                         ))}

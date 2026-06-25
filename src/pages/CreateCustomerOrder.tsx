@@ -351,8 +351,8 @@ export default function CreateCustomerOrder() {
                         <h3>Apply Discount (Optional)</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                             <div className="form-group">
-                                <label>
-                                    <Percent size={14} /> Discount Type
+                                <label className="flex! flex-row items-center">
+                                    <Percent size={14} /> Deposite Type
                                 </label>
                                 <select
                                     title="Discount Type"
@@ -366,8 +366,8 @@ export default function CreateCustomerOrder() {
                             </div>
 
                             <div className="form-group">
-                                <label>
-                                    <DollarSign size={14} /> Discount Value
+                                <label className="flex! flex-row items-center">
+                                    <DollarSign size={14} /> Deposite Value
                                 </label>
                                 <input
                                     type="number"
@@ -396,14 +396,14 @@ export default function CreateCustomerOrder() {
 
                             {discount > 0 && (
                                 <div className="summary-row text-danger">
-                                    <span>Discount:</span>
+                                    <span>Deposite:</span>
                                     <strong>-{discount.toFixed(2)} EGP</strong>
                                 </div>
                             )}
 
                             <div className="summary-row summary-total">
                                 <span>Total Order Cost:</span>
-                                <strong className="text-green">{total.toFixed(2)} EGP</strong>
+                                <strong className="text-green ps-2!">{total.toFixed(2)} EGP</strong>
                             </div>
                         </div>
 
@@ -412,11 +412,11 @@ export default function CreateCustomerOrder() {
                             <div className="summary-rows" style={{ opacity: 0.6, borderTop: '1px solid #ddd', paddingTop: 12, marginTop: 12 }}>
                                 <div className="summary-row">
                                     <span>Your Total Cost:</span>
-                                    <strong>{totalCost.toFixed(2)} EGP</strong>
+                                    <strong className="ps-2!">{totalCost.toFixed(2)} EGP</strong>
                                 </div>
                                 <div className="summary-row text-green">
                                     <span>Profit:</span>
-                                    <strong>{totalProfit.toFixed(2)} EGP</strong>
+                                    <strong className="ms-2">{totalProfit.toFixed(2)} EGP</strong>
                                 </div>
                             </div>
                         </div>
