@@ -1,17 +1,20 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
-    Trash2, Plus, Package, DollarSign, Truck, FileText, Save, X,
+    Trash2, Plus, Package, DollarSign, Truck, FileText, Save, X, CheckCircle, Circle,
 } from 'lucide-react';
-import type { ShipmentForm, ShipmentProduct, Product } from '../../types';
+import type { ShipmentForm, ShipmentProduct } from '../../types';
 import { useNavigate, useParams } from 'react-router-dom';
 import { shipmentService } from '../../services/shipmentService';
-import { productService } from '../../services/productService';
-import { useCollection } from '../../hooks/useCollection';
 
 interface ExtendedShipmentProduct extends ShipmentProduct {
+    productName?: string;
     priceInYen?: string;
     exchangeRate?: string;
     priceInEgp?: string;
+    soldPrice?: string;
+    arrivedInChina?: boolean;
+    shippingPrice?: string;
+    benefit?: string;
 }
 
 const emptyForm: ShipmentForm = {
@@ -35,14 +38,10 @@ export default function CreateEditShipment() {
     const navigate = useNavigate();
     const isEdit = !!id;
 
-    const { data: products } = useCollection<Product>({
-        fetchFn: useCallback(() => productService.listAll(), []),
-    });
-
     const [form, setForm] = useState<ShipmentForm>(emptyForm);
     const [selectedProducts, setSelectedProducts] = useState<ExtendedShipmentProduct[]>([]);
     const [loading, setLoading] = useState(false);
-    const [exchangeRate,] = useState('8.3');
+    const [exchangeRate] = useState('8.3');
 
     // Load shipment if editing
     useEffect(() => {
@@ -69,20 +68,31 @@ export default function CreateEditShipment() {
         }
     }, [id, isEdit, navigate]);
 
-    const getProductStock = (productId: string): number => {
-        const product = products.find((p: Product) => p.$id === productId);
-        return parseInt(product?.count || '0') || 0;
-    };
-
     const addProduct = () => {
         const newProduct: ExtendedShipmentProduct = {
-            productId: products[0]?.$id || '',
+            productId: '',
+            productName: '',
             qty: 1,
             priceInYen: '',
             exchangeRate: exchangeRate,
             priceInEgp: '0.00',
+            soldPrice: '',
+            arrivedInChina: false,
+            shippingPrice: '0.00',
+            benefit: '0.00',
         };
         setSelectedProducts([...selectedProducts, newProduct]);
+    };
+
+    // Calculate benefit for a product
+    const calculateBenefit = (product: ExtendedShipmentProduct): number => {
+        const costPerItem = parseFloat(product.priceInEgp || '0') || 0;
+        const soldPrice = parseFloat(product.soldPrice || '0') || 0;
+        const shippingPrice = parseFloat(product.shippingPrice || '0') || 0;
+        const qty = product.qty || 1;
+
+        const benefitPerItem = Math.max(0, soldPrice - costPerItem - shippingPrice);
+        return benefitPerItem * qty;
     };
 
     // Update product in table
@@ -98,11 +108,20 @@ export default function CreateEditShipment() {
                         updated[field] = value;
                         // Auto-calculate EGP price
                         const yen = parseFloat(field === 'priceInYen' ? value : (p.priceInYen || '0')) || 0;
-                        const rate = parseFloat(field === 'exchangeRate' ? value : (p.exchangeRate || '0.33')) || 0;
+                        const rate = parseFloat(field === 'exchangeRate' ? value : (p.exchangeRate || exchangeRate)) || 0;
                         updated.priceInEgp = (yen * rate).toFixed(2);
+                    } else if (field === 'soldPrice') {
+                        updated.soldPrice = value;
+                    } else if (field === 'shippingPrice') {
+                        updated.shippingPrice = value;
+                    } else if (field === 'arrivedInChina') {
+                        updated.arrivedInChina = value;
                     } else {
                         updated[field] = value;
                     }
+
+                    // Recalculate benefit
+                    updated.benefit = calculateBenefit(updated).toFixed(2);
 
                     return updated;
                 }
@@ -116,10 +135,27 @@ export default function CreateEditShipment() {
         setSelectedProducts((prev) => prev.filter((_, i) => i !== index));
     };
 
+    // Calculate totals
+    const totalQty = selectedProducts.reduce((sum, sp) => sum + sp.qty, 0);
+    const totalCostInChina = selectedProducts.reduce((sum, sp) => {
+        return sum + ((parseFloat(sp.priceInEgp || '0') || 0) * sp.qty);
+    }, 0);
+    const totalProductShipping = selectedProducts.reduce((sum, sp) => {
+        return sum + (parseFloat(sp.shippingPrice || '0') || 0) * sp.qty;
+    }, 0);
+    const totalSoldPrice = selectedProducts.reduce((sum, sp) => {
+        return sum + ((parseFloat(sp.soldPrice || '0') || 0) * sp.qty);
+    }, 0);
+    const totalBenefit = selectedProducts.reduce((sum, sp) => {
+        return sum + (parseFloat(sp.benefit || '0') || 0);
+    }, 0);
+    const arrivedCount = selectedProducts.filter(p => p.arrivedInChina).length;
+
+    // Calculate final total cost (Cost in China + Product Shipping + Extra Cost)
     const calcTotal = (): number => {
         return (
-            (parseFloat(form.cost_in_china) || 0) +
-            (parseFloat(form.shipping) || 0) +
+            totalCostInChina +
+            totalProductShipping +
             (parseFloat(form.extra_cost) || 0)
         );
     };
@@ -134,13 +170,39 @@ export default function CreateEditShipment() {
             return;
         }
 
+        // Validate that all products have required fields
+        if (selectedProducts.some(p => !p.productName?.trim())) {
+            alert('Please enter a product name for all products');
+            return;
+        }
+
+        if (selectedProducts.some(p => !p.soldPrice)) {
+            alert('Please enter sold price for all products');
+            return;
+        }
+
         setLoading(true);
         try {
-            const productsArray = selectedProducts.map((sp) => JSON.stringify(sp));
+            const productsArray = selectedProducts.map((sp) => {
+                const { productId, productName, qty, priceInYen, exchangeRate, priceInEgp, soldPrice, arrivedInChina, shippingPrice, benefit } = sp;
+                return JSON.stringify({
+                    productId: productId || productName,
+                    productName,
+                    qty,
+                    priceInYen,
+                    exchangeRate,
+                    priceInEgp,
+                    soldPrice,
+                    arrivedInChina,
+                    shippingPrice,
+                    benefit,
+                });
+            });
 
             const payload: ShipmentForm = {
                 ...form,
                 products: productsArray,
+                shipping: totalProductShipping.toFixed(2),
                 total_cost: liveTotal.toString(),
             };
 
@@ -161,8 +223,6 @@ export default function CreateEditShipment() {
         }
     };
 
-    const totalQty = selectedProducts.reduce((sum, sp) => sum + sp.qty, 0);
-
     return (
         <div className="page">
             <div className="page-header">
@@ -179,7 +239,12 @@ export default function CreateEditShipment() {
             <form onSubmit={handleSubmit} className="card">
                 {/* ===== PRODUCTS TABLE SECTION ===== */}
                 <div className="form-section">
-                    <h2>Products</h2>
+                    <div className="flex! flex-row items-center justify-between mb-4!">
+                        <h2>Products</h2>
+                        <div className="text-sm text-gray-600">
+                            <span className="font-semibold">{arrivedCount}</span> of <span className="font-semibold">{selectedProducts.length}</span> arrived in China
+                        </div>
+                    </div>
 
                     {selectedProducts.length === 0 ? (
                         <div className="empty-state">
@@ -188,100 +253,158 @@ export default function CreateEditShipment() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
+                            <table className="w-full border-collapse text-xs">
                                 <thead>
                                     <tr className="bg-gray-100 border-b">
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">#</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Product</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Qty</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Price (¥)</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Rate</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Price (EGP)</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Stock</th>
-                                        <th className="px-4 py-2 text-left text-sm font-semibold">Action</th>
+                                        <th className="px-2 py-2 text-left font-semibold">#</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Arrived</th>
+                                        <th className="px-2 py-2 text-left font-semibold">Product Name</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Qty</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Price (¥)</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Rate</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Cost (EGP)</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Ship/Item</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Sold Price</th>
+                                        <th className="px-2 py-2 text-right font-semibold">Benefit</th>
+                                        <th className="px-2 py-2 text-center font-semibold">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {selectedProducts.map((sp, index) => (
-                                        <tr key={index} className="border-b hover:bg-gray-50">
-                                            <td className="px-4 py-3 text-sm font-semibold text-center">{index + 1}</td>
+                                    {selectedProducts.map((sp, index) => {
+                                        // const costPerItem = parseFloat(sp.priceInEgp || '0') || 0;
+                                        // const soldPrice = parseFloat(sp.soldPrice || '0') || 0;
+                                        // const shippingPrice = parseFloat(sp.shippingPrice || '0') || 0;
+                                        // const benefitPerItem = Math.max(0, soldPrice - costPerItem - shippingPrice);
+                                        const benefit = parseFloat(sp.benefit || '0') || 0;
 
-                                            <td className="px-4 py-3">
-                                                <select
-                                                    title="Select a product"
-                                                    required
-                                                    value={sp.productId}
-                                                    onChange={(e) => updateProduct(index, 'productId', e.target.value)}
-                                                    className="form-input text-sm"
-                                                >
-                                                    <option value="">-- Select --</option>
-                                                    {products.map((p: any) => (
-                                                        <option key={p.$id} value={p.$id}>
-                                                            {p.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </td>
+                                        return (
+                                            <tr key={index} className="border-b hover:bg-gray-50">
+                                                <td className="px-2 py-3 text-center font-semibold">{index + 1}</td>
 
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    title="Quantity"
-                                                    required
-                                                    type="number"
-                                                    step="1"
-                                                    min="1"
-                                                    value={sp.qty}
-                                                    onChange={(e) => updateProduct(index, 'qty', e.target.value)}
-                                                    className="form-input text-sm w-16"
-                                                />
-                                            </td>
+                                                {/* Arrived Checkbox */}
+                                                <td className="px-2 py-3 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => updateProduct(index, 'arrivedInChina', !sp.arrivedInChina)}
+                                                        className="btn-icon"
+                                                        title={sp.arrivedInChina ? 'Mark as not arrived' : 'Mark as arrived'}
+                                                    >
+                                                        {sp.arrivedInChina ? (
+                                                            <CheckCircle size={16} style={{ color: '#10b981' }} />
+                                                        ) : (
+                                                            <Circle size={16} style={{ color: '#d1d5db' }} />
+                                                        )}
+                                                    </button>
+                                                </td>
 
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    value={sp.priceInYen || ''}
-                                                    onChange={(e) => updateProduct(index, 'priceInYen', e.target.value)}
-                                                    className="form-input text-sm w-24"
-                                                    title="Price in Yen"
-                                                />
-                                            </td>
+                                                {/* Product Name */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Product name"
+                                                        required
+                                                        value={sp.productName || ''}
+                                                        onChange={(e) => updateProduct(index, 'productName', e.target.value)}
+                                                        className="form-input text-xs w-full"
+                                                        title="Product Name"
+                                                    />
+                                                </td>
 
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="number"
-                                                    step="0.0001"
-                                                    min="0"
-                                                    placeholder="0.33"
-                                                    value={sp.exchangeRate || exchangeRate}
-                                                    onChange={(e) => updateProduct(index, 'exchangeRate', e.target.value)}
-                                                    className="form-input text-sm w-20"
-                                                    title="Exchange Rate (1 JPY = ? EGP)"
-                                                />
-                                            </td>
+                                                {/* Quantity */}
+                                                <td className="px-2 py-3 text-center">
+                                                    <input
+                                                        title="Quantity"
+                                                        required
+                                                        type="number"
+                                                        step="1"
+                                                        min="1"
+                                                        value={sp.qty}
+                                                        onChange={(e) => updateProduct(index, 'qty', e.target.value)}
+                                                        className="form-input text-xs w-14 text-center"
+                                                    />
+                                                </td>
 
-                                            <td className="px-4 py-3 text-[12px]! font-semibold text-blue-600 bg-blue-50">
-                                                {sp.priceInEgp || '0.00'} EGP
-                                            </td>
+                                                {/* Price in Yen */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        value={sp.priceInYen || ''}
+                                                        onChange={(e) => updateProduct(index, 'priceInYen', e.target.value)}
+                                                        className="form-input text-xs w-16"
+                                                        title="Price in Yen"
+                                                    />
+                                                </td>
 
-                                            <td className="px-4 py-3 text-sm text-gray-600 text-center">
-                                                {getProductStock(sp.productId)}
-                                            </td>
+                                                {/* Exchange Rate */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.0001"
+                                                        min="0"
+                                                        placeholder="0.33"
+                                                        value={sp.exchangeRate || exchangeRate}
+                                                        onChange={(e) => updateProduct(index, 'exchangeRate', e.target.value)}
+                                                        className="form-input text-xs w-14"
+                                                        title="Exchange Rate"
+                                                    />
+                                                </td>
 
-                                            <td className="px-4 py-3 text-center">
-                                                <button
-                                                    type="button"
-                                                    className="btn-icon danger"
-                                                    onClick={() => removeProduct(index)}
-                                                    title="Remove product"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                {/* Cost in EGP (Display) */}
+                                                <td className="px-2 py-3 font-semibold text-blue-600 bg-blue-50 rounded text-right">
+                                                    {sp.priceInEgp || '0.00'} EGP
+                                                </td>
+
+                                                {/* Shipping Per Item (Input) */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        value={sp.shippingPrice || ''}
+                                                        onChange={(e) => updateProduct(index, 'shippingPrice', e.target.value)}
+                                                        className="form-input text-xs w-16"
+                                                        title="Shipping Price Per Item"
+                                                    />
+                                                </td>
+
+                                                {/* Sold Price (Input) */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        value={sp.soldPrice || ''}
+                                                        onChange={(e) => updateProduct(index, 'soldPrice', e.target.value)}
+                                                        className="form-input text-xs w-16"
+                                                        title="Sold Price (EGP)"
+                                                        required
+                                                    />
+                                                </td>
+
+                                                {/* Benefit (Display) */}
+                                                <td className={`px-2 py-3 text-right font-semibold rounded ${benefit > 0 ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'}`}>
+                                                    {benefit > 0 ? '+' : ''}{benefit.toFixed(2)} EGP
+                                                </td>
+
+                                                {/* Delete Button */}
+                                                <td className="px-2 py-3 text-center">
+                                                    <button
+                                                        type="button"
+                                                        className="btn-icon danger"
+                                                        onClick={() => removeProduct(index)}
+                                                        title="Remove product"
+                                                    >
+                                                        <Trash2 size={14} />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -297,7 +420,7 @@ export default function CreateEditShipment() {
 
                     {selectedProducts.length > 0 && (
                         <p className="form-hint mt-2!">
-                            {selectedProducts.length} product(s) selected — {totalQty} total items
+                            {selectedProducts.length} product(s) added — {totalQty} total items
                         </p>
                     )}
                 </div>
@@ -320,23 +443,24 @@ export default function CreateEditShipment() {
                             onChange={(e) => setForm({ ...form, cost_in_china: e.target.value })}
                             className="form-input"
                         />
+                        <small className="text-gray-500">Auto-calculated from products: {totalCostInChina.toFixed(2)} EGP</small>
                     </div>
 
                     <div className="form-row">
                         <div className="form-group">
                             <label className="flex! items-center gap-1">
-                                <Truck size={14} /> Shipping (EGP) *
+                                <Truck size={14} /> Total Product Shipping (EGP)
                             </label>
                             <input
-                                required
+                                disabled
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                placeholder="Shipping cost"
-                                value={form.shipping}
-                                onChange={(e) => setForm({ ...form, shipping: e.target.value })}
-                                className="form-input"
+                                placeholder="Auto-calculated"
+                                value={totalProductShipping.toFixed(2)}
+                                className="form-input bg-gray-100"
                             />
+                            <small className="text-gray-500">Auto-calculated from products shipping per item</small>
                         </div>
 
                         <div className="form-group">
@@ -359,18 +483,18 @@ export default function CreateEditShipment() {
                 {/* ===== COST SUMMARY ===== */}
                 {selectedProducts.length > 0 && (
                     <div className="form-section order-summary">
-
+                        <h3 className="mb-4!">Summary</h3>
                         <div className="summary-rows w-full!">
                             <div className="summary-row">
-                                <span>Cost in China:</span>
-                                <strong>{parseFloat(form.cost_in_china || '0').toFixed(2)} EGP</strong>
+                                <span>Total Cost in China:</span>
+                                <strong>{totalCostInChina.toFixed(2)} EGP</strong>
                             </div>
 
                             <div className="summary-row">
                                 <span className="flex! items-center gap-1">
-                                    <Truck size={12} /> Shipping:
+                                    <Truck size={12} /> Total Product Shipping:
                                 </span>
-                                <strong>{parseFloat(form.shipping || '0').toFixed(2)} EGP</strong>
+                                <strong>{totalProductShipping.toFixed(2)} EGP</strong>
                             </div>
 
                             <div className="summary-row">
@@ -381,21 +505,37 @@ export default function CreateEditShipment() {
                             </div>
 
                             <div className="summary-row summary-total">
-                                <span>Total Cost:</span>
-                                <strong className="text-green">{liveTotal.toFixed(2)} EGP</strong>
+                                <span>Total Shipment Cost:</span>
+                                <strong className="text-orange-600">{liveTotal.toFixed(2)} EGP</strong>
+                            </div>
+
+                            <div className="summary-row">
+                                <span>Total Sold Price:</span>
+                                <strong className="text-blue-600">{totalSoldPrice.toFixed(2)} EGP</strong>
+                            </div>
+
+                            <div className={`summary-row summary-total ${totalBenefit > 0 ? 'text-green' : 'text-danger'}`}>
+                                <span>Total Benefit:</span>
+                                <strong>{totalBenefit > 0 ? '+' : ''}{totalBenefit.toFixed(2)} EGP</strong>
                             </div>
 
                             {totalQty > 0 && (
-                                <div className="summary-row">
-                                    <span>Cost per item (avg):</span>
-                                    <strong>{(liveTotal / totalQty).toFixed(2)} EGP</strong>
-                                </div>
+                                <>
+                                    <div className="summary-row">
+                                        <span>Cost per item (avg):</span>
+                                        <strong>{(liveTotal / totalQty).toFixed(2)} EGP</strong>
+                                    </div>
+                                    <div className="summary-row">
+                                        <span>Benefit per item (avg):</span>
+                                        <strong className={totalBenefit / totalQty > 0 ? 'text-green' : 'text-danger'}>
+                                            {(totalBenefit / totalQty).toFixed(2)} EGP
+                                        </strong>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
                 )}
-
-                {/* ===== FORM ACTIONS ===== */}
                 <div className="form-actions">
                     <button
                         type="button"

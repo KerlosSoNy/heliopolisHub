@@ -22,7 +22,6 @@ const navItems = [
     { to: '/customers', icon: Users, label: 'Customers' },
     { to: '/additional', icon: Plus, label: 'Additionals' },
     { to: '/shipments', icon: ShieldIcon, label: 'Shipments' },
-    { to: '/orders', icon: ShoppingCart, label: 'Hub Orders' },
     { to: '/customer-orders', icon: ShoppingCart, label: 'Customer Orders' },
     { to: '/transactions', icon: DollarSign, label: 'Transactions' },
     { to: '/currency', icon: DollarSign, label: 'Currency Rate' },

@@ -1,10 +1,10 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     Trash2, Edit, Plus, X, ShoppingCart, User,
-    Package, DollarSign, Check, Minus,
-    Plus as PlusIcon, Wallet, CheckCircle,
+    Package, DollarSign,
+    Wallet, CheckCircle,
     CircleDollarSign, Clock,
-    Eye, Percent, Tag,                          // ← ADD Percent, Tag
+    Eye, Percent, Tag,
 } from 'lucide-react';
 import { orderService } from '../services/orderService';
 import { customerService } from '../services/customerService';
@@ -13,6 +13,12 @@ import { depositHistoryService } from '../services/depositHistoryService';
 import { useCollection } from '../hooks/useCollection';
 import type { Order, Customer, Product, SelectedProduct } from '../types';
 import { useNavigate } from 'react-router-dom';
+
+interface ManualProduct extends SelectedProduct {
+    productName?: string;
+    soldPrice?: string;
+    costPrice?: string;
+}
 
 export default function Orders() {
     const { data: orders, loading, error, refetch } = useCollection<Order>({
@@ -25,14 +31,13 @@ export default function Orders() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [client, setClient] = useState('');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
+    const [selectedProducts, setSelectedProducts] = useState<ManualProduct[]>([]);
     const [submitting, setSubmitting] = useState(false);
-    const [useDeposite, setUseDeposite] = useState(true);
+    const [useDeposite, setUseDeposite] = useState(false);
     const [depositeAmount, setDepositeAmount] = useState<number>(0);
     const [filterPaid, setFilterPaid] = useState<'all' | 'paid' | 'unpaid'>('all');
     const navigate = useNavigate();
 
-    // ← NEW: Discount state
     const [discountValue, setDiscountValue] = useState<number>(0);
     const [discountType, setDiscountType] = useState<'fixed' | 'percentage'>('fixed');
 
@@ -50,6 +55,9 @@ export default function Orders() {
     }, []);
 
     // ========== HELPERS ==========
+    const getCustomerByName = (name: string): Customer | undefined =>
+        customers.find((c) => c.name.toLowerCase() === name.toLowerCase());
+
     const getProduct = (id: string): Product | undefined =>
         allProducts.find((p) => p.$id === id);
 
@@ -63,25 +71,16 @@ export default function Orders() {
     const getSoldPerPiece = (product: Product): number =>
         parseFloat(product.sold_price || '0');
 
-    const getAvailableCount = (product: Product): number =>
-        parseInt(product.count) || 0;
+    // const getAvailableCount = (product: Product): number =>
+    //     parseInt(product.count) || 0;
 
-    const getDisplayPrice = (product: Product): number => {
-        const sold = getSoldPerPiece(product);
-        return sold > 0 ? sold : getCostPerPiece(product);
-    };
+    // const getDisplayPrice = (product: Product): number => {
+    //     const sold = getSoldPerPiece(product);
+    //     return sold > 0 ? sold : getCostPerPiece(product);
+    // };
 
     const isPaid = (order: Order): boolean => order.is_paid === 'yes';
 
-    // // ← NEW: Helper to calculate discount amount for any order
-    // const getOrderDiscountAmount = (order: Order, subtotal: number): number => {
-    //     const discVal = parseFloat(order.discount || '0');
-    //     if (discVal <= 0) return 0;
-    //     if (order.discount_type === 'percentage') {
-    //         return Math.min((subtotal * discVal) / 100, subtotal);
-    //     }
-    //     return Math.min(discVal, subtotal);
-    // };
     const editingOrder = useMemo(
         () => (editingId ? orders.find((o) => o.$id === editingId) : null),
         [editingId, orders]
@@ -93,7 +92,7 @@ export default function Orders() {
     }, [editingOrder]);
 
     const selectedCustomer = useMemo(() =>
-        customers.find((c) => c.name === client), [client, customers]);
+        getCustomerByName(client), [client, customers]);
 
     const customerDeposite = useMemo(
         () => parseFloat(selectedCustomer?.deposite || '0'),
@@ -110,16 +109,15 @@ export default function Orders() {
 
         return customerDeposite;
     }, [selectedCustomer, customerDeposite, editingOrder, oldOrderDeposit]);
+
     // ========== TOTALS ==========
     const orderTotal = useMemo(() => {
         return selectedProducts.reduce((sum, sp) => {
-            const product = getProduct(sp.productId);
-            if (!product) return sum;
-            return sum + getDisplayPrice(product) * sp.qty;
+            const price = parseFloat(sp.soldPrice || '0');
+            return sum + (price > 0 ? price : 0) * sp.qty;
         }, 0);
-    }, [selectedProducts, allProducts]);
+    }, [selectedProducts]);
 
-    // ← NEW: Calculate discount amount
     const discountAmount = useMemo(() => {
         if (discountValue <= 0) return 0;
         if (discountType === 'percentage') {
@@ -128,11 +126,9 @@ export default function Orders() {
         return Math.min(discountValue, orderTotal);
     }, [discountValue, discountType, orderTotal]);
 
-    // ← UPDATED: Subtotal after discount
     const totalAfterDiscount = useMemo(() =>
         Math.max(0, orderTotal - discountAmount), [orderTotal, discountAmount]);
 
-    // ← UPDATED: Max deposit now based on discounted total
     const maxDeposite = useMemo(() => {
         if (!useDeposite || effectiveCustomerDeposit <= 0) return 0;
         return Math.min(effectiveCustomerDeposit, totalAfterDiscount);
@@ -152,7 +148,6 @@ export default function Orders() {
         setDepositeAmount(Math.min(num, effectiveCustomerDeposit));
     };
 
-    // ← UPDATED: Final amount = subtotal - discount - deposit
     const amountAfterDeposite = useMemo(() =>
         Math.max(0, totalAfterDiscount - depositeToUse), [totalAfterDiscount, depositeToUse]);
 
@@ -168,51 +163,46 @@ export default function Orders() {
     const totalDepositsUsed = orders
         .reduce((sum, o) => sum + parseFloat(o.deposite || '0'), 0);
 
-    // ← NEW: Total discounts given
     const totalDiscounts = orders.reduce((sum, o) => {
         const disc = parseFloat(o.discount || '0');
         if (disc <= 0) return sum;
-        // Recalculate the actual discount amount for percentage-based discounts
-        const orderSubtotal = parseFloat(o.price_egp || '0') + parseFloat(o.deposite || '0');
-        if (o.discount_type === 'percentage') {
-            // For percentage, we need the original subtotal before discount
-            // price_egp = subtotal - discount - deposit, so subtotal = price_egp + deposit + discountAmount
-            // This is tricky, so we store the actual discount amount instead
-            // For now, approximate or store actual amount
-            return sum + disc; // We'll store actual amount — see below
-        }
-        return sum + Math.min(disc, orderSubtotal + disc);
+        return sum + disc;
     }, 0);
 
     const totalRevenue = orders.reduce(
         (sum, o) => sum + (parseFloat(o.price_egp) || 0), 0);
 
     // ========== PRODUCT SELECTION ==========
-    const toggleProduct = (productId: string) => {
-        setSelectedProducts((prev) => {
-            const exists = prev.find((sp) => sp.productId === productId);
-            if (exists) return prev.filter((sp) => sp.productId !== productId);
-            return [...prev, { productId, qty: 1 }];
-        });
+    const addProduct = () => {
+        setSelectedProducts([...selectedProducts, {
+            productId: '',
+            qty: 1,
+            productName: '',
+            soldPrice: '',
+            costPrice: '',
+        }]);
     };
 
-    const updateQty = (productId: string, newQty: number) => {
-        const product = getProduct(productId);
-        if (!product) return;
-        const maxCount = getAvailableCount(product);
-        const clampedQty = Math.max(1, Math.min(newQty, maxCount));
+    const updateProduct = (index: number, field: keyof ManualProduct, value: any) => {
         setSelectedProducts((prev) =>
-            prev.map((sp) =>
-                sp.productId === productId ? { ...sp, qty: clampedQty } : sp
-            )
+            prev.map((p, i) => {
+                if (i === index) {
+                    const updated = { ...p };
+                    if (field === 'qty') {
+                        updated.qty = Math.max(1, parseInt(value) || 1);
+                    } else {
+                        updated[field] = value;
+                    }
+                    return updated;
+                }
+                return p;
+            })
         );
     };
 
-    const isSelected = (productId: string): boolean =>
-        selectedProducts.some((sp) => sp.productId === productId);
-
-    const getSelectedQty = (productId: string): number =>
-        selectedProducts.find((sp) => sp.productId === productId)?.qty || 0;
+    const removeProduct = (index: number) => {
+        setSelectedProducts((prev) => prev.filter((_, i) => i !== index));
+    };
 
     // ========== TOGGLE PAID ==========
     const handleTogglePaid = async (order: Order) => {
@@ -231,26 +221,31 @@ export default function Orders() {
         setSelectedProducts([]);
         setDepositeAmount(0);
         setEditingId(null);
-        setUseDeposite(true);
-        setDiscountValue(0);          // ← NEW
-        setDiscountType('fixed');      // ← NEW
+        setUseDeposite(false);
+        setDiscountValue(0);
+        setDiscountType('fixed');
         setShowModal(true);
     };
 
     const openEdit = (order: Order) => {
         setClient(order.client);
         const quantities = order.quantities || [];
-        const restored: SelectedProduct[] = (order.products || []).map((pid, index) => ({
-            productId: pid,
-            qty: parseInt(quantities[index] || '1') || 1,
-        }));
+        const restored: ManualProduct[] = (order.products || []).map((pid, index) => {
+            const product = getProduct(pid);
+            return {
+                productId: pid,
+                qty: parseInt(quantities[index] || '1') || 1,
+                productName: product?.name || '',
+                soldPrice: product ? getSoldPerPiece(product).toFixed(2) : '',
+                costPrice: product ? getCostPerPiece(product).toFixed(2) : '',
+            };
+        });
         setSelectedProducts(restored);
         setEditingId(order.$id);
         const savedDeposite = parseFloat(order.deposite || '0');
         setUseDeposite(savedDeposite > 0);
         setDepositeAmount(savedDeposite);
 
-        // ← NEW: Restore discount
         setDiscountValue(parseFloat(order.discount || '0'));
         setDiscountType((order.discount_type as 'fixed' | 'percentage') || 'fixed');
 
@@ -260,23 +255,35 @@ export default function Orders() {
     useEffect(() => {
         if (editingId) return;
         setDepositeAmount(0);
-        setUseDeposite(true);
-        setDiscountValue(0);          // ← NEW
-        setDiscountType('fixed');      // ← NEW
+        setUseDeposite(false);
+        setDiscountValue(0);
+        setDiscountType('fixed');
     }, [client, editingId]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (submitting) return;
+
+        if (!client.trim()) {
+            alert('Please enter customer name');
+            return;
+        }
+
+        if (selectedProducts.length === 0) {
+            alert('Please add at least one product');
+            return;
+        }
+
+        if (selectedProducts.some(p => !p.productName?.trim() || !p.soldPrice)) {
+            alert('Please fill all product details');
+            return;
+        }
+
         setSubmitting(true);
 
         try {
             const productDescription = selectedProducts
-                .map((sp) => {
-                    const product = getProduct(sp.productId);
-                    return product ? `${product.name} ×${sp.qty}` : '';
-                })
-                .filter(Boolean)
+                .map((sp) => `${sp.productName} ×${sp.qty}`)
                 .join(', ');
 
             const existingOrder = editingId
@@ -286,12 +293,12 @@ export default function Orders() {
             const orderData = {
                 client,
                 product: productDescription,
-                products: selectedProducts.map((sp) => sp.productId),
+                products: selectedProducts.map((sp) => sp.productName || ''),
                 quantities: selectedProducts.map((sp) => sp.qty.toString()),
                 price_egp: amountAfterDeposite.toFixed(2),
                 deposite: depositeToUse > 0 ? depositeToUse.toFixed(2) : '0',
                 customer_deposite: effectiveCustomerDeposit > 0 ? effectiveCustomerDeposit.toFixed(2) : '0',
-                is_paid: existingOrder?.is_paid || 'no', // preserve paid status on edit
+                is_paid: existingOrder?.is_paid || 'no',
                 discount: discountAmount > 0 ? discountAmount.toFixed(2) : '0',
                 discount_type: discountType,
             };
@@ -299,199 +306,121 @@ export default function Orders() {
             let orderId: string;
 
             if (editingId) {
-                if (!existingOrder) {
-                    throw new Error('Original order not found');
-                }
+                await orderService.update(editingId, orderData);
+                orderId = editingId;
 
-                // =========================
-                // 1) RESTORE OLD STOCK
-                // =========================
-                const oldProducts = existingOrder.products || [];
-                const oldQuantities = existingOrder.quantities || [];
+                // Handle deposit reconciliation if customer changed
+                if (existingOrder && existingOrder.client !== client) {
+                    const oldCustomer = getCustomerByName(existingOrder.client);
+                    const oldDeposit = parseFloat(existingOrder.deposite || '0');
 
-                for (let i = 0; i < oldProducts.length; i++) {
-                    const pid = oldProducts[i];
-                    const qty = parseInt(oldQuantities[i] || '1') || 1;
-                    await productService.increaseCount(pid, qty);
-                }
-
-                // =========================
-                // 2) VALIDATE NEW STOCK
-                // =========================
-                const latestProducts = await productService.listAll();
-
-                for (const sp of selectedProducts) {
-                    const product = latestProducts.find((p) => p.$id === sp.productId);
-                    if (!product) {
-                        throw new Error(`Product not found`);
-                    }
-
-                    const available = parseInt(product.count || '0') || 0;
-                    if (sp.qty > available) {
-                        throw new Error(`Not enough stock for ${product.name}. Available: ${available}`);
-                    }
-                }
-
-                // =========================
-                // 3) APPLY NEW STOCK
-                // =========================
-                for (const sp of selectedProducts) {
-                    await productService.decreaseCount(sp.productId, sp.qty);
-                }
-
-                // =========================
-                // 4) RECONCILE DEPOSIT
-                // =========================
-                const oldDeposit = parseFloat(existingOrder.deposite || '0');
-                const newDeposit = depositeToUse;
-
-                const oldCustomer = customers.find((c) => c.name === existingOrder.client);
-                const newCustomer = selectedCustomer;
-
-                // Case A: same customer
-                if (oldCustomer && newCustomer && oldCustomer.$id === newCustomer.$id) {
-                    const diff = newDeposit - oldDeposit;
-                    const currentCustomerDeposit = parseFloat(newCustomer.deposite || '0');
-
-                    if (diff > 0) {
-                        // Need to deduct more deposit
-                        if (diff > currentCustomerDeposit) {
-                            throw new Error(
-                                `${newCustomer.name} does not have enough deposit. Available: ${currentCustomerDeposit.toFixed(2)} EGP`
-                            );
-                        }
-
-                        await customerService.update(newCustomer.$id, {
-                            deposite: Math.max(0, currentCustomerDeposit - diff).toFixed(2),
-                        });
-
-                        await depositHistoryService.logUse(
-                            newCustomer.$id,
-                            newCustomer.name,
-                            diff.toFixed(2),
-                            `Additional ${diff.toFixed(2)} EGP used when updating Order #${editingId.slice(0, 8)} — ${productDescription}`
-                        );
-                    } else if (diff < 0) {
-                        // Need to restore deposit
-                        const restoreAmount = Math.abs(diff);
-
-                        await customerService.update(newCustomer.$id, {
-                            deposite: (currentCustomerDeposit + restoreAmount).toFixed(2),
-                        });
-
-                        await depositHistoryService.logRestore(
-                            newCustomer.$id,
-                            newCustomer.name,
-                            restoreAmount.toFixed(2),
-                            `Restored ${restoreAmount.toFixed(2)} EGP when updating Order #${editingId.slice(0, 8)}`
-                        );
-                    }
-                } else {
-                    // Case B: customer changed
-                    // Restore old deposit to old customer
                     if (oldCustomer && oldDeposit > 0) {
-                        const oldCustomerCurrentDeposit = parseFloat(oldCustomer.deposite || '0');
-
+                        const currentDeposit = parseFloat(oldCustomer.deposite || '0');
                         await customerService.update(oldCustomer.$id, {
-                            deposite: (oldCustomerCurrentDeposit + oldDeposit).toFixed(2),
+                            deposite: (currentDeposit + oldDeposit).toFixed(2),
                         });
 
                         await depositHistoryService.logRestore(
                             oldCustomer.$id,
                             oldCustomer.name,
                             oldDeposit.toFixed(2),
-                            `Restored ${oldDeposit.toFixed(2)} EGP from updated Order #${editingId.slice(0, 8)} (customer changed)`
+                            `Restored from updated Order #${editingId.slice(0, 8)} (customer changed)`
                         );
                     }
 
-                    // Deduct new deposit from new customer
-                    if (newCustomer && newDeposit > 0) {
-                        const newCustomerCurrentDeposit = parseFloat(newCustomer.deposite || '0');
-
-                        if (newDeposit > newCustomerCurrentDeposit) {
+                    if (selectedCustomer && depositeToUse > 0) {
+                        const currentDeposit = parseFloat(selectedCustomer.deposite || '0');
+                        if (depositeToUse > currentDeposit) {
                             throw new Error(
-                                `${newCustomer.name} does not have enough deposit. Available: ${newCustomerCurrentDeposit.toFixed(2)} EGP`
+                                `${selectedCustomer.name} does not have enough deposit. Available: ${currentDeposit.toFixed(2)} EGP`
                             );
                         }
 
-                        await customerService.update(newCustomer.$id, {
-                            deposite: Math.max(0, newCustomerCurrentDeposit - newDeposit).toFixed(2),
+                        await customerService.update(selectedCustomer.$id, {
+                            deposite: (currentDeposit - depositeToUse).toFixed(2),
                         });
 
                         await depositHistoryService.logUse(
-                            newCustomer.$id,
-                            newCustomer.name,
-                            newDeposit.toFixed(2),
-                            `Used ${newDeposit.toFixed(2)} EGP when updating Order #${editingId.slice(0, 8)} — ${productDescription}`
+                            selectedCustomer.$id,
+                            selectedCustomer.name,
+                            depositeToUse.toFixed(2),
+                            `Used in updated Order #${orderId.slice(0, 8)} — ${productDescription}`
+                        );
+                    }
+                } else if (selectedCustomer && existingOrder) {
+                    // Same customer - reconcile deposit difference
+                    const oldDeposit = parseFloat(existingOrder.deposite || '0');
+                    const diff = depositeToUse - oldDeposit;
+
+                    if (diff > 0) {
+                        const currentDeposit = parseFloat(selectedCustomer.deposite || '0');
+                        if (diff > currentDeposit) {
+                            throw new Error(
+                                `${selectedCustomer.name} does not have enough deposit. Available: ${currentDeposit.toFixed(2)} EGP`
+                            );
+                        }
+
+                        await customerService.update(selectedCustomer.$id, {
+                            deposite: (currentDeposit - diff).toFixed(2),
+                        });
+
+                        await depositHistoryService.logUse(
+                            selectedCustomer.$id,
+                            selectedCustomer.name,
+                            diff.toFixed(2),
+                            `Additional ${diff.toFixed(2)} EGP used in updated Order #${orderId.slice(0, 8)}`
+                        );
+                    } else if (diff < 0) {
+                        const restoreAmount = Math.abs(diff);
+                        const currentDeposit = parseFloat(selectedCustomer.deposite || '0');
+
+                        await customerService.update(selectedCustomer.$id, {
+                            deposite: (currentDeposit + restoreAmount).toFixed(2),
+                        });
+
+                        await depositHistoryService.logRestore(
+                            selectedCustomer.$id,
+                            selectedCustomer.name,
+                            restoreAmount.toFixed(2),
+                            `Restored from updated Order #${orderId.slice(0, 8)}`
                         );
                     }
                 }
-
-                // =========================
-                // 5) UPDATE ORDER
-                // =========================
-                await orderService.update(editingId, orderData);
-                orderId = editingId;
             } else {
-                // =========================
-                // CREATE ORDER
-                // =========================
-                const latestProducts = await productService.listAll();
-
-                for (const sp of selectedProducts) {
-                    const product = latestProducts.find((p) => p.$id === sp.productId);
-                    if (!product) {
-                        throw new Error(`Product not found`);
-                    }
-
-                    const available = parseInt(product.count || '0') || 0;
-                    if (sp.qty > available) {
-                        throw new Error(`Not enough stock for ${product.name}. Available: ${available}`);
-                    }
-                }
-
+                // Create new order
                 const newOrder = await orderService.create({
                     ...orderData,
                     is_paid: 'no',
                 });
                 orderId = newOrder.$id;
 
-                for (const sp of selectedProducts) {
-                    await productService.decreaseCount(sp.productId, sp.qty);
-                }
-
+                // Handle deposit for new order
                 if (depositeToUse > 0 && selectedCustomer) {
-                    const remainingDeposite = Math.max(0, customerDeposite - depositeToUse);
+                    const currentDeposit = parseFloat(selectedCustomer.deposite || '0');
+                    if (depositeToUse > currentDeposit) {
+                        throw new Error(
+                            `${selectedCustomer.name} does not have enough deposit. Available: ${currentDeposit.toFixed(2)} EGP`
+                        );
+                    }
 
                     await customerService.update(selectedCustomer.$id, {
-                        deposite: remainingDeposite.toFixed(2),
+                        deposite: (currentDeposit - depositeToUse).toFixed(2),
                     });
 
                     await depositHistoryService.logUse(
                         selectedCustomer.$id,
                         selectedCustomer.name,
                         depositeToUse.toFixed(2),
-                        `Used ${depositeToUse.toFixed(2)} EGP in Order #${orderId.slice(0, 8)} — ${productDescription}`
+                        `Used in Order #${orderId.slice(0, 8)} — ${productDescription}`
                     );
                 }
             }
 
-            // =========================
-            // LINK PRODUCTS TO ORDER
-            // =========================
-            const productIds = selectedProducts.map((sp) => sp.productId);
-            if (productIds.length > 0) {
-                await productService.linkToOrder(productIds, orderId);
-            }
-
-            // =========================
-            // RESET UI
-            // =========================
             setShowModal(false);
             setSelectedProducts([]);
             setClient('');
             setDepositeAmount(0);
-            setUseDeposite(true);
+            setUseDeposite(false);
             setDiscountValue(0);
             setDiscountType('fixed');
 
@@ -505,22 +434,14 @@ export default function Orders() {
             setSubmitting(false);
         }
     };
+
     const handleDelete = async (id: string) => {
-        if (!confirm('Delete this order? Product counts will be restored.')) return;
+        if (!confirm('Delete this order?')) return;
         try {
             const order = orders.find((o) => o.$id === id);
 
-            if (order?.products && order.products.length > 0) {
-                const quantities = order.quantities || [];
-                for (let i = 0; i < order.products.length; i++) {
-                    const pid = order.products[i];
-                    const qty = parseInt(quantities[i] || '1') || 1;
-                    await productService.increaseCount(pid, qty);
-                }
-            }
-
             if (order?.deposite && parseFloat(order.deposite) > 0) {
-                const customer = customers.find((c) => c.name === order.client);
+                const customer = getCustomerByName(order.client);
                 if (customer) {
                     const currentDeposite = parseFloat(customer.deposite || '0');
                     const restoredAmount = parseFloat(order.deposite);
@@ -531,7 +452,7 @@ export default function Orders() {
                         customer.$id,
                         customer.name,
                         restoredAmount.toFixed(2),
-                        `Restored ${restoredAmount.toFixed(2)} EGP from deleted Order #${id.slice(0, 8)}`
+                        `Restored from deleted Order #${id.slice(0, 8)}`
                     );
                 }
             }
@@ -618,7 +539,6 @@ export default function Orders() {
                         <p className="stat-value text-blue">{totalDepositsUsed.toFixed(2)}</p>
                     </div>
                 </div>
-                {/* ← NEW: Total Discounts Stat */}
                 <div className="stat-card">
                     <div className="stat-icon" style={{ background: 'rgba(249, 115, 22, 0.15)', color: '#f97316' }}>
                         <Tag size={24} />
@@ -639,13 +559,11 @@ export default function Orders() {
 
             {/* Order Cards */}
             <div className="flex flex-row items-center gap-4 max-w-full! overflow-x-auto! py-5! my-5!">
-
-                {/* <div className="order-grid"> */}
                 {filteredOrders.map((o) => {
                     const paid = isPaid(o);
                     const depUsed = parseFloat(o.deposite || '0');
                     const totalPrice = parseFloat(o.price_egp || '0');
-                    const discountAmt = parseFloat(o.discount || '0');   // ← NEW
+                    const discountAmt = parseFloat(o.discount || '0');
 
                     return (
                         <div key={o.$id} className={`order-card shrink-0 min-w-75 ${paid ? 'order-card-paid' : 'order-card-unpaid'}`}>
@@ -653,7 +571,7 @@ export default function Orders() {
                                 <div className="order-id">#{o.$id.slice(0, 8)}</div>
                                 <div className="customer-card-actions">
                                     <button type="button" title="View Details" className="btn-icon"
-                                        onClick={() => navigate(`/orders/${o.$id}`)}>
+                                        onClick={() => navigate(`/orders/new/${o.$id}`)}>
                                         <Eye size={15} />
                                     </button>
                                     <button
@@ -692,7 +610,6 @@ export default function Orders() {
                                             {totalPrice.toFixed(2)} EGP
                                         </strong>
                                     </div>
-                                    {/* ← NEW: Show discount on card */}
                                     {discountAmt > 0 && (
                                         <div className="order-number-item">
                                             <span>Discount</span>
@@ -729,7 +646,7 @@ export default function Orders() {
                                 <th>Order ID</th>
                                 <th>Client</th>
                                 <th>Items</th>
-                                <th>Discount</th>    {/* ← NEW */}
+                                <th>Discount</th>
                                 <th>Deposit</th>
                                 <th>To Pay</th>
                                 <th>Status</th>
@@ -741,14 +658,13 @@ export default function Orders() {
                             {filteredOrders.map((o) => {
                                 const paid = isPaid(o);
                                 const depUsed = parseFloat(o.deposite || '0');
-                                const discountAmt = parseFloat(o.discount || '0');  // ← NEW
+                                const discountAmt = parseFloat(o.discount || '0');
 
                                 return (
                                     <tr key={o.$id} className={paid ? 'row-paid' : 'row-unpaid'}>
                                         <td>#{o.$id.slice(0, 8)}</td>
                                         <td><strong>{o.client}</strong></td>
                                         <td><span className="table-items-text">{o.products?.length || '—'}</span></td>
-                                        {/* ← NEW: Discount column */}
                                         <td>
                                             {discountAmt > 0 ? (
                                                 <span style={{ color: '#f97316' }}>−{discountAmt.toFixed(2)}</span>
@@ -811,20 +727,17 @@ export default function Orders() {
                             </button>
                         </div>
                         <form onSubmit={handleSubmit}>
-                            {/* Client Select */}
+                            {/* Client Name Input */}
                             <div className="form-group">
-                                <label className='flex! flex-row items-center gap-2'><User size={14} /> Client *</label>
-                                <select title='Select' required value={client} onChange={(e) => setClient(e.target.value)}>
-                                    <option value="">Select client...</option>
-                                    {customers.map((c) => {
-                                        const dep = parseFloat(c.deposite || '0');
-                                        return (
-                                            <option key={c.$id} value={c.name}>
-                                                {c.name} ({c.phone}){dep > 0 ? ` — 💰 ${dep.toFixed(2)} EGP` : ''}
-                                            </option>
-                                        );
-                                    })}
-                                </select>
+                                <label className='flex! flex-row items-center gap-2'><User size={14} /> Customer Name *</label>
+                                <input
+                                    type="text"
+                                    placeholder="Enter customer name"
+                                    required
+                                    value={client}
+                                    onChange={(e) => setClient(e.target.value)}
+                                    className="form-input"
+                                />
                             </div>
 
                             {/* Deposit Banner */}
@@ -908,7 +821,7 @@ export default function Orders() {
                                 </div>
                             )}
 
-                            {/* ← NEW: Discount Section */}
+                            {/* Discount Section */}
                             <div className="form-group mt-4!">
                                 <label className='flex! flex-row items-center gap-2'>
                                     <Tag size={14} /> Discount
@@ -918,7 +831,6 @@ export default function Orders() {
                                     padding: '12px', borderRadius: '12px',
                                     border: '1px solid #e5e7eb', background: '#fefce8',
                                 }}>
-                                    {/* Discount Type Toggle */}
                                     <div style={{
                                         display: 'flex', borderRadius: '8px', overflow: 'hidden',
                                         border: '1px solid #d1d5db',
@@ -950,7 +862,6 @@ export default function Orders() {
                                         </button>
                                     </div>
 
-                                    {/* Discount Input */}
                                     <input
                                         type="number"
                                         value={discountValue || ''}
@@ -970,7 +881,6 @@ export default function Orders() {
                                         }}
                                     />
 
-                                    {/* Show calculated discount amount for percentage */}
                                     {discountAmount > 0 && (
                                         <span style={{
                                             fontSize: '13px', fontWeight: 700, color: '#f97316',
@@ -982,104 +892,136 @@ export default function Orders() {
                                 </div>
                             </div>
 
-                            {/* Product Selection */}
+                            {/* Manual Product Entry */}
                             <div className="form-group mt-4!">
                                 <label className='flex! flex-row items-center gap-2'>
-                                    <Package size={14} /> Select Products *
-                                    <span className="label-badge">{selectedProducts.length} selected</span>
+                                    <Package size={14} /> Products *
+                                    <span className="label-badge">{selectedProducts.length} added</span>
                                 </label>
-                                <div className="grid grid-cols-2 max-h-100 overflow-y-auto border rounded-2xl p-2! border-gray-300 gap-4!">
-                                    {allProducts.map((p) => {
-                                        const selected = isSelected(p.$id);
-                                        const soldPc = getSoldPerPiece(p);
-                                        const costPc = getCostPerPiece(p);
-                                        const available = getAvailableCount(p);
-                                        const qty = getSelectedQty(p.$id);
-                                        const displayPrice = getDisplayPrice(p);
-                                        const outOfStock = available === 0;
 
-                                        return (
-                                            <div key={p.$id} className={`product-select-item ${selected ? 'selected' : 'bg-gray-400'} ${outOfStock ? 'out-of-stock' : ''}`}>
-                                                <div className="product-select-check" onClick={() => !outOfStock && toggleProduct(p.$id)}>
-                                                    {selected && <Check size={16} />}
-                                                </div>
-                                                <div className="product-select-info flex! flex-col" onClick={() => !outOfStock && !selected && toggleProduct(p.$id)}>
-                                                    <span className="product-select-name flex! flex-col items-center text-center">
-                                                        {p.name}
-                                                        {soldPc === 0 && <span className="no-sold-badge mt-2!">No sold price</span>}
-                                                        {outOfStock && <span className="out-of-stock-badge w-fit mx-auto mt-2!">Out of stock</span>}
-                                                    </span>
-                                                    <span className="product-select-details">
-                                                        {soldPc > 0 ? <>Sold: <strong>{soldPc.toFixed(2)}</strong> EGP/pc</> : <>Cost: {costPc.toFixed(2)} EGP/pc</>}
-                                                    </span>
-                                                    <span className={`product-select-stock ${outOfStock ? 'stock-zero' : ''}`}>
-                                                        Available: <strong>{available}</strong>
-                                                    </span>
-                                                </div>
-                                                {selected && !outOfStock && (
-                                                    <div className="qty-picker mx-auto!">
-                                                        <button title="Decrease quantity" type="button" className="qty-btn" onClick={() => updateQty(p.$id, qty - 1)} disabled={qty <= 1}><Minus size={14} /></button>
-                                                        <input title="Quantity" type="number" className="qty-input text-black!" value={qty} min={1} max={available} onChange={(e) => updateQty(p.$id, parseInt(e.target.value) || 1)} />
-                                                        <button title="Increase quantity" type="button" className="qty-btn" onClick={() => updateQty(p.$id, qty + 1)} disabled={qty >= available}><PlusIcon size={14} /></button>
-                                                        <span className="qty-max">/ {available}</span>
-                                                    </div>
-                                                )}
-                                                {selected && (
-                                                    <div className="product-select-subtotal">{(displayPrice * qty).toFixed(2)}<small> EGP</small></div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                {selectedProducts.length === 0 ? (
+                                    <div className="empty-state mb-4">
+                                        <Package size={24} />
+                                        <p>No products added yet</p>
+                                    </div>
+                                ) : (
+                                    <div className="overflow-x-auto mb-4">
+                                        <table className="w-full border-collapse text-sm">
+                                            <thead>
+                                                <tr className="bg-gray-100 border-b">
+                                                    <th className="px-3 py-2 text-left">#</th>
+                                                    <th className="px-3 py-2 text-left">Product Name</th>
+                                                    <th className="px-3 py-2 text-left">Qty</th>
+                                                    <th className="px-3 py-2 text-left">Price (EGP)</th>
+                                                    <th className="px-3 py-2 text-left">Subtotal</th>
+                                                    <th className="px-3 py-2 text-center">Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {selectedProducts.map((sp, idx) => (
+                                                    <tr key={idx} className="border-b hover:bg-gray-50">
+                                                        <td className="px-3 py-2 font-semibold text-center">{idx + 1}</td>
+                                                        <td className="px-3 py-2">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Product name"
+                                                                value={sp.productName || ''}
+                                                                onChange={(e) => updateProduct(idx, 'productName', e.target.value)}
+                                                                className="form-input text-sm w-full"
+                                                                required
+                                                            />
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="Qty"
+                                                                min="1"
+                                                                value={sp.qty}
+                                                                onChange={(e) => updateProduct(idx, 'qty', e.target.value)}
+                                                                className="form-input text-sm w-16"
+                                                                required
+                                                            />
+                                                        </td>
+                                                        <td className="px-3 py-2">
+                                                            <input
+                                                                type="number"
+                                                                placeholder="0.00"
+                                                                step="0.01"
+                                                                min="0"
+                                                                value={sp.soldPrice || ''}
+                                                                onChange={(e) => updateProduct(idx, 'soldPrice', e.target.value)}
+                                                                className="form-input text-sm w-24"
+                                                                required
+                                                            />
+                                                        </td>
+                                                        <td className="px-3 py-2 font-semibold">
+                                                            {((parseFloat(sp.soldPrice || '0') || 0) * sp.qty).toFixed(2)} EGP
+                                                        </td>
+                                                        <td className="px-3 py-2 text-center">
+                                                            <button
+                                                                type="button"
+                                                                className="btn-icon danger"
+                                                                onClick={() => removeProduct(idx)}
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary w-full"
+                                    onClick={addProduct}
+                                >
+                                    <Plus size={16} /> Add Product
+                                </button>
                             </div>
 
-                            {/* ← UPDATED: Order Summary with Discount */}
+                            {/* Order Summary */}
                             {selectedProducts.length > 0 && (
                                 <div className="order-breakdown">
                                     <h4>Order Summary</h4>
-                                    {selectedProducts.map((sp) => {
-                                        const product = getProduct(sp.productId);
-                                        if (!product) return null;
-                                        const displayPrice = getDisplayPrice(product);
-                                        const soldPc = getSoldPerPiece(product);
-                                        return (
-                                            <div key={sp.productId} className="order-breakdown-item">
-                                                <div className="breakdown-product-info">
-                                                    <span className="breakdown-product-name">
-                                                        {product.name}
-                                                        <span className="breakdown-qty mx-2! py-1!">×{sp.qty}</span>
-                                                    </span>
-                                                    <span className="breakdown-unit-price">
-                                                        {displayPrice.toFixed(2)} EGP/pc {soldPc > 0 ? '(sold)' : '(cost)'}
-                                                    </span>
-                                                </div>
-                                                <div className="breakdown-item-total">{(displayPrice * sp.qty).toFixed(2)} EGP</div>
+                                    {selectedProducts.map((sp, idx) => (
+                                        <div key={idx} className="order-breakdown-item">
+                                            <div className="breakdown-product-info">
+                                                <span className="breakdown-product-name">
+                                                    {sp.productName}
+                                                    <span className="breakdown-qty mx-2! py-1!">×{sp.qty}</span>
+                                                </span>
+                                                <span className="breakdown-unit-price">
+                                                    {parseFloat(sp.soldPrice || '0').toFixed(2)} EGP/pc
+                                                </span>
                                             </div>
-                                        );
-                                    })}
+                                            <div className="breakdown-item-total">
+                                                {((parseFloat(sp.soldPrice || '0') || 0) * sp.qty).toFixed(2)} EGP
+                                            </div>
+                                        </div>
+                                    ))}
                                     <div className="order-breakdown-totals">
                                         <div className="breakdown-total-row">
                                             <span>Subtotal:</span>
                                             <span>{orderTotal.toFixed(2)} EGP</span>
                                         </div>
 
-                                        {/* ← NEW: Discount row */}
                                         {discountAmount > 0 && (
-                                            <div className="breakdown-total-row" style={{ color: '#f97316' }}>
-                                                <span>
-                                                    <Tag size={14} /> Discount
-                                                    {discountType === 'percentage' && ` (${discountValue}%)`}:
-                                                </span>
-                                                <span>−{discountAmount.toFixed(2)} EGP</span>
-                                            </div>
-                                        )}
-
-                                        {/* ← NEW: After discount subtotal */}
-                                        {discountAmount > 0 && (
-                                            <div className="breakdown-total-row">
-                                                <span>After Discount:</span>
-                                                <span>{totalAfterDiscount.toFixed(2)} EGP</span>
-                                            </div>
+                                            <>
+                                                <div className="breakdown-total-row" style={{ color: '#f97316' }}>
+                                                    <span>
+                                                        <Tag size={14} /> Discount
+                                                        {discountType === 'percentage' && ` (${discountValue}%)`}:
+                                                    </span>
+                                                    <span>−{discountAmount.toFixed(2)} EGP</span>
+                                                </div>
+                                                <div className="breakdown-total-row">
+                                                    <span>After Discount:</span>
+                                                    <span>{totalAfterDiscount.toFixed(2)} EGP</span>
+                                                </div>
+                                            </>
                                         )}
 
                                         {depositeToUse > 0 && (
@@ -1101,7 +1043,7 @@ export default function Orders() {
 
                             <div className="form-actions">
                                 <button type="button" className="btn" onClick={() => setShowModal(false)}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" disabled={selectedProducts.length === 0 || !client || submitting}>
+                                <button type="submit" className="btn btn-primary" disabled={selectedProducts.length === 0 || !client.trim() || submitting}>
                                     {submitting ? '⏳ Creating...' : editingId ? 'Update Order' : 'Create Order'}
                                 </button>
                             </div>

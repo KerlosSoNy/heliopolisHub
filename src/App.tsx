@@ -3,11 +3,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
-import Orders from './pages/Orders';
 import Login from './pages/Login';
 import AdditionalPage from './pages/Additional';
 import Shipments from './pages/shipments/Shipments';
-import OrderDetail from './pages/OrderDetail';
 import Transactions from './pages/Transactions';
 import ProductHistoryPage from './pages/ProductHistory';
 import CurrencyTracker from './pages/CurrencyTracker';
@@ -33,8 +31,6 @@ function AppLayout() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/additional" element={<AdditionalPage />} />
-          <Route path="/orders" element={<Orders />} />
-          <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/customer-orders" element={<CustomerOrders />} />
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/orders/:id/edit" element={<EditCustomerOrder />} />
@@ -43,8 +39,6 @@ function AppLayout() {
           <Route path="/shipments/create" element={<CreateEditShipment />} />
           <Route path="/shipments/:id" element={<ViewShipment />} />
           <Route path="/shipments/:id/edit" element={<CreateEditShipment />} />
-
-
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/currency" element={<CurrencyTracker />} />
           <Route path="/products" element={<Products />} />
