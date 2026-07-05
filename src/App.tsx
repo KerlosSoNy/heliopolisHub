@@ -18,6 +18,7 @@ import WebsiteProducts from './pages/WebsiteProducts';
 import WebsiteCategories from './pages/WebsiteCategories';
 import CreateEditShipment from './pages/shipments/createShipments';
 import ViewShipment from './pages/shipments/viewShipments';
+import OrderDetail from './pages/OrderDetail';
 
 function AppLayout() {
   return (
@@ -34,6 +35,7 @@ function AppLayout() {
           <Route path="/customer-orders" element={<CustomerOrders />} />
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/orders/:id/edit" element={<EditCustomerOrder />} />
+          <Route path="/orders/:id" element={<OrderDetail />} />
           <Route path="/orders/create" element={<CreateCustomerOrder />} />
           <Route path="/shipments" element={<Shipments />} />
           <Route path="/shipments/create" element={<CreateEditShipment />} />
